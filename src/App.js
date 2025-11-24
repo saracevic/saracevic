@@ -254,168 +254,467 @@ export default function App() {
 
   const isConnected = Object.values(connectionStatus).some((s) => s);
 
+  const styles = {
+    container: {
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+      padding: '20px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    },
+    header: {
+      maxWidth: '1800px',
+      margin: '0 auto 24px',
+      background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+      borderRadius: '20px',
+      padding: '30px',
+      border: '1px solid #475569',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+    },
+    title: {
+      fontSize: '42px',
+      fontWeight: 'bold',
+      color: 'white',
+      marginBottom: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '16px',
+    },
+    statusBar: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '16px',
+      fontSize: '14px',
+      marginBottom: '24px',
+    },
+    statusDot: {
+      width: '10px',
+      height: '10px',
+      borderRadius: '50%',
+      animation: 'pulse 2s infinite',
+    },
+    controls: {
+      display: 'flex',
+      gap: '16px',
+      alignItems: 'flex-end',
+      flexWrap: 'wrap',
+      marginBottom: '24px',
+    },
+    input: {
+      padding: '12px 16px',
+      backgroundColor: '#0f172a',
+      border: '2px solid #475569',
+      borderRadius: '12px',
+      color: 'white',
+      fontSize: '16px',
+      fontWeight: '600',
+      width: '160px',
+    },
+    button: {
+      padding: '12px 24px',
+      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+      border: 'none',
+      borderRadius: '12px',
+      color: 'white',
+      fontSize: '15px',
+      fontWeight: 'bold',
+      cursor: 'pointer',
+      boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)',
+      transition: 'all 0.3s',
+    },
+    exchangeSelector: {
+      padding: '20px',
+      backgroundColor: '#0f172a',
+      borderRadius: '16px',
+      border: '1px solid #334155',
+      marginBottom: '24px',
+    },
+    exchangeButton: {
+      padding: '12px 20px',
+      border: 'none',
+      borderRadius: '10px',
+      color: 'white',
+      fontSize: '14px',
+      fontWeight: 'bold',
+      cursor: 'pointer',
+      transition: 'all 0.3s',
+      marginRight: '12px',
+      marginBottom: '8px',
+    },
+    statsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+      gap: '16px',
+    },
+    statCard: {
+      padding: '20px',
+      borderRadius: '16px',
+      border: '2px solid',
+    },
+    mainGrid: {
+      maxWidth: '1800px',
+      margin: '0 auto',
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '24px',
+    },
+    tableContainer: {
+      borderRadius: '20px',
+      overflow: 'hidden',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+      border: '2px solid',
+    },
+    tableHeader: {
+      padding: '20px 24px',
+      color: 'white',
+      fontSize: '20px',
+      fontWeight: 'bold',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+    },
+    tableColumnHeader: {
+      padding: '16px 20px',
+      fontSize: '12px',
+      fontWeight: 'bold',
+      letterSpacing: '1px',
+      display: 'grid',
+      gridTemplateColumns: '80px 1fr 1fr 1fr',
+      gap: '16px',
+    },
+    tableRow: {
+      display: 'grid',
+      gridTemplateColumns: '80px 1fr 1fr 1fr',
+      gap: '16px',
+      padding: '16px 20px',
+      fontSize: '15px',
+      borderBottom: '1px solid',
+      transition: 'background-color 0.2s',
+      cursor: 'pointer',
+    },
+    scrollContainer: {
+      maxHeight: '600px',
+      overflowY: 'auto',
+    },
+    emptyState: {
+      textAlign: 'center',
+      padding: '80px 20px',
+      color: '#64748b',
+    },
+    footer: {
+      maxWidth: '1800px',
+      margin: '24px auto 0',
+      textAlign: 'center',
+      color: '#64748b',
+      fontSize: '14px',
+      padding: '20px',
+    },
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
-      {/* Header */}
-      <div className="max-w-[1800px] mx-auto mb-6 bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700 shadow-2xl">
-        <div className="flex justify-between items-start flex-wrap gap-6">
+    <div style={styles.container}>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        button:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        input:focus {
+          outline: none;
+          border-color: #8b5cf6;
+          box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+      `}</style>
+
+      <div style={styles.header}>
+        <h1 style={styles.title}>
+          <span style={{ fontSize: '50px' }}>🐋</span>
+          Premium Whale Tracker
+        </h1>
+        
+        <div style={styles.statusBar}>
+          <span style={{ 
+            color: isConnected ? '#10b981' : '#ef4444',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontWeight: 'bold'
+          }}>
+            <span style={{
+              ...styles.statusDot,
+              backgroundColor: isConnected ? '#10b981' : '#ef4444'
+            }}></span>
+            {isConnected ? 'LIVE' : 'DISCONNECTED'}
+          </span>
+          <span style={{ color: '#64748b' }}>•</span>
+          <span style={{ color: '#94a3b8' }}>{selectedExchanges.length} Active Exchanges</span>
+          <span style={{ color: '#64748b' }}>•</span>
+          <span style={{ color: '#94a3b8' }}>Top 100 Futures</span>
+        </div>
+
+        <div style={styles.controls}>
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-              <span className="text-5xl">🐋</span>
-              Premium Whale Tracker
-            </h1>
-            <div className="flex items-center gap-4 text-sm">
-              <span className={`flex items-center gap-2 ${isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
-                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></span>
-                {isConnected ? 'LIVE' : 'DISCONNECTED'}
-              </span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-400">{selectedExchanges.length} Active Exchanges</span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-400">Top 100 Futures</span>
-            </div>
+            <label style={{ 
+              display: 'block',
+              color: '#94a3b8',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              marginBottom: '8px',
+              letterSpacing: '1px'
+            }}>
+              MIN AMOUNT (USD)
+            </label>
+            <input
+              type="number"
+              value={threshold}
+              onChange={(e) => setThreshold(Number(e.target.value))}
+              style={styles.input}
+            />
           </div>
+          <button
+            onClick={() => setCoinData({})}
+            style={styles.button}
+            onMouseEnter={(e) => {
+              e.target.style.background = 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
+            }}
+          >
+            🔄 RESET
+          </button>
+        </div>
 
-          <div className="flex gap-4 items-end flex-wrap">
-            <div>
-              <label className="text-xs text-slate-400 font-semibold mb-2 block">MIN AMOUNT (USD)</label>
-              <input
-                type="number"
-                value={threshold}
-                onChange={(e) => setThreshold(Number(e.target.value))}
-                className="w-36 px-4 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-semibold focus:ring-2 focus:ring-violet-500 focus:outline-none"
-              />
-            </div>
-            <button
-              onClick={() => setCoinData({})}
-              className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-red-500/50"
-            >
-              🔄 RESET
-            </button>
+        <div style={styles.exchangeSelector}>
+          <div style={{ 
+            color: '#94a3b8',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            marginBottom: '16px',
+            letterSpacing: '1px'
+          }}>
+            SELECT EXCHANGES
+          </div>
+          <div>
+            {Object.keys(EXCHANGES).map((ex) => {
+              const isSelected = selectedExchanges.includes(ex);
+              return (
+                <button
+                  key={ex}
+                  onClick={() => {
+                    setSelectedExchanges((prev) =>
+                      prev.includes(ex) ? prev.filter((e) => e !== ex) : [...prev, ex]
+                    );
+                  }}
+                  style={{
+                    ...styles.exchangeButton,
+                    background: isSelected 
+                      ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+                      : '#334155',
+                    boxShadow: isSelected 
+                      ? '0 4px 12px rgba(139, 92, 246, 0.4)'
+                      : 'none',
+                  }}
+                >
+                  {isSelected && '✓ '}{ex}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Exchange Selector */}
-        <div className="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-800">
-          <div className="text-xs text-slate-400 font-bold mb-3">SELECT EXCHANGES</div>
-          <div className="flex gap-3 flex-wrap">
-            {Object.keys(EXCHANGES).map((ex) => (
-              <button
-                key={ex}
-                onClick={() => {
-                  setSelectedExchanges((prev) =>
-                    prev.includes(ex) ? prev.filter((e) => e !== ex) : [...prev, ex]
-                  );
-                }}
-                className={`px-5 py-2 rounded-lg font-semibold transition-all ${
-                  selectedExchanges.includes(ex)
-                    ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/50'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                {selectedExchanges.includes(ex) && '✓ '}{ex}
-              </button>
-            ))}
+        <div style={styles.statsGrid}>
+          <div style={{
+            ...styles.statCard,
+            background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)',
+            borderColor: '#10b981',
+          }}>
+            <div style={{ color: '#6ee7b7', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
+              BUY VOLUME
+            </div>
+            <div style={{ color: 'white', fontSize: '32px', fontWeight: 'bold' }}>
+              ${(totalStats.totalBuyVolume / 1000000).toFixed(2)}M
+            </div>
+            <div style={{ color: '#a7f3d0', fontSize: '14px', marginTop: '8px' }}>
+              {totalStats.totalBuyCount.toLocaleString()} trades
+            </div>
           </div>
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          <div className="bg-gradient-to-br from-emerald-950 to-emerald-900 p-4 rounded-xl border border-emerald-800">
-            <div className="text-emerald-400 text-xs font-bold mb-1">BUY VOLUME</div>
-            <div className="text-2xl font-bold text-white">${(totalStats.totalBuyVolume / 1000000).toFixed(2)}M</div>
-            <div className="text-emerald-300 text-sm mt-1">{totalStats.totalBuyCount.toLocaleString()} trades</div>
+          <div style={{
+            ...styles.statCard,
+            background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
+            borderColor: '#ef4444',
+          }}>
+            <div style={{ color: '#fca5a5', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
+              SELL VOLUME
+            </div>
+            <div style={{ color: 'white', fontSize: '32px', fontWeight: 'bold' }}>
+              ${(totalStats.totalSellVolume / 1000000).toFixed(2)}M
+            </div>
+            <div style={{ color: '#fecaca', fontSize: '14px', marginTop: '8px' }}>
+              {totalStats.totalSellCount.toLocaleString()} trades
+            </div>
           </div>
-          <div className="bg-gradient-to-br from-red-950 to-red-900 p-4 rounded-xl border border-red-800">
-            <div className="text-red-400 text-xs font-bold mb-1">SELL VOLUME</div>
-            <div className="text-2xl font-bold text-white">${(totalStats.totalSellVolume / 1000000).toFixed(2)}M</div>
-            <div className="text-red-300 text-sm mt-1">{totalStats.totalSellCount.toLocaleString()} trades</div>
-          </div>
-          <div className="bg-gradient-to-br from-blue-950 to-blue-900 p-4 rounded-xl border border-blue-800">
-            <div className="text-blue-400 text-xs font-bold mb-1">NET FLOW</div>
-            <div className={`text-2xl font-bold ${totalStats.totalBuyVolume > totalStats.totalSellVolume ? 'text-emerald-400' : 'text-red-400'}`}>
+
+          <div style={{
+            ...styles.statCard,
+            background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)',
+            borderColor: '#3b82f6',
+          }}>
+            <div style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
+              NET FLOW
+            </div>
+            <div style={{ 
+              color: totalStats.totalBuyVolume > totalStats.totalSellVolume ? '#10b981' : '#ef4444',
+              fontSize: '32px',
+              fontWeight: 'bold'
+            }}>
               ${Math.abs((totalStats.totalBuyVolume - totalStats.totalSellVolume) / 1000000).toFixed(2)}M
             </div>
-            <div className="text-blue-300 text-sm mt-1">{totalStats.totalBuyVolume > totalStats.totalSellVolume ? 'Buy pressure' : 'Sell pressure'}</div>
+            <div style={{ color: '#bfdbfe', fontSize: '14px', marginTop: '8px' }}>
+              {totalStats.totalBuyVolume > totalStats.totalSellVolume ? 'Buy pressure' : 'Sell pressure'}
+            </div>
           </div>
-          <div className="bg-gradient-to-br from-amber-950 to-amber-900 p-4 rounded-xl border border-amber-800">
-            <div className="text-amber-400 text-xs font-bold mb-1">ACTIVE COINS</div>
-            <div className="text-2xl font-bold text-white">{Object.keys(coinData).length}</div>
-            <div className="text-amber-300 text-sm mt-1">Tracked assets</div>
+
+          <div style={{
+            ...styles.statCard,
+            background: 'linear-gradient(135deg, #78350f 0%, #92400e 100%)',
+            borderColor: '#f59e0b',
+          }}>
+            <div style={{ color: '#fcd34d', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
+              ACTIVE COINS
+            </div>
+            <div style={{ color: 'white', fontSize: '32px', fontWeight: 'bold' }}>
+              {Object.keys(coinData).length}
+            </div>
+            <div style={{ color: '#fde68a', fontSize: '14px', marginTop: '8px' }}>
+              Tracked assets
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Dual Pivot Tables */}
-      <div className="max-w-[1800px] mx-auto grid lg:grid-cols-2 gap-6">
-        {/* Top Buyers */}
-        <div className="bg-gradient-to-b from-emerald-900/20 to-slate-900 rounded-2xl border border-emerald-800/50 overflow-hidden shadow-2xl">
-          <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              📈 TOP 100 BUY VOLUME
-            </h2>
+      <div style={styles.mainGrid}>
+        {/* Buy Volume Table */}
+        <div style={{
+          ...styles.tableContainer,
+          borderColor: '#10b981',
+          background: 'linear-gradient(180deg, rgba(6, 78, 59, 0.2) 0%, #0f172a 100%)',
+        }}>
+          <div style={{
+            ...styles.tableHeader,
+            background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+          }}>
+            📈 TOP 100 BUY VOLUME
           </div>
-          <div className="bg-slate-900 px-4 py-3 border-b border-slate-800 grid grid-cols-4 gap-2 text-xs font-bold text-slate-400">
+          <div style={{
+            ...styles.tableColumnHeader,
+            backgroundColor: '#1e293b',
+            color: '#94a3b8',
+            borderBottom: '2px solid #334155',
+          }}>
             <span>RANK</span>
             <span>COIN</span>
-            <span className="text-right">VOLUME</span>
-            <span className="text-right">TRADES</span>
+            <span style={{ textAlign: 'right' }}>VOLUME</span>
+            <span style={{ textAlign: 'right' }}>TRADES</span>
           </div>
-          <div className="max-h-[600px] overflow-y-auto bg-slate-950">
+          <div style={styles.scrollContainer}>
             {topBuyers.length === 0 ? (
-              <div className="text-center py-20 text-slate-500">
-                <div className="text-5xl mb-4">⏳</div>
-                <div className="font-semibold">Waiting for whale trades...</div>
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏳</div>
+                <div style={{ fontWeight: 'bold', fontSize: '18px' }}>Waiting for whale trades...</div>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>Min: ${threshold.toLocaleString()}</div>
               </div>
             ) : (
               topBuyers.map((coin, idx) => (
                 <div
                   key={coin.coin}
-                  className="grid grid-cols-4 gap-2 px-4 py-3 border-b border-slate-900 hover:bg-emerald-950/30 transition-colors"
+                  style={{
+                    ...styles.tableRow,
+                    backgroundColor: idx % 2 === 0 ? '#0f172a' : '#1a1f2e',
+                    borderBottomColor: '#1e293b',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#064e3b';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#0f172a' : '#1a1f2e';
+                  }}
                 >
-                  <span className="text-slate-500 font-bold">#{idx + 1}</span>
-                  <span className="text-emerald-400 font-bold">{coin.coin}</span>
-                  <span className="text-right text-white font-semibold">
+                  <span style={{ color: '#64748b', fontWeight: 'bold' }}>#{idx + 1}</span>
+                  <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
+                    {coin.coin}
+                  </span>
+                  <span style={{ color: 'white', fontWeight: 'bold', textAlign: 'right' }}>
                     ${(coin.buyVolume / 1000).toFixed(1)}K
                   </span>
-                  <span className="text-right text-emerald-300">{coin.buyCount}</span>
+                  <span style={{ color: '#6ee7b7', textAlign: 'right' }}>
+                    {coin.buyCount}
+                  </span>
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* Top Sellers */}
-        <div className="bg-gradient-to-b from-red-900/20 to-slate-900 rounded-2xl border border-red-800/50 overflow-hidden shadow-2xl">
-          <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              📉 TOP 100 SELL VOLUME
-            </h2>
+        {/* Sell Volume Table */}
+        <div style={{
+          ...styles.tableContainer,
+          borderColor: '#ef4444',
+          background: 'linear-gradient(180deg, rgba(127, 29, 29, 0.2) 0%, #0f172a 100%)',
+        }}>
+          <div style={{
+            ...styles.tableHeader,
+            background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+          }}>
+            📉 TOP 100 SELL VOLUME
           </div>
-          <div className="bg-slate-900 px-4 py-3 border-b border-slate-800 grid grid-cols-4 gap-2 text-xs font-bold text-slate-400">
+          <div style={{
+            ...styles.tableColumnHeader,
+            backgroundColor: '#1e293b',
+            color: '#94a3b8',
+            borderBottom: '2px solid #334155',
+          }}>
             <span>RANK</span>
             <span>COIN</span>
-            <span className="text-right">VOLUME</span>
-            <span className="text-right">TRADES</span>
+            <span style={{ textAlign: 'right' }}>VOLUME</span>
+            <span style={{ textAlign: 'right' }}>TRADES</span>
           </div>
-          <div className="max-h-[600px] overflow-y-auto bg-slate-950">
+          <div style={styles.scrollContainer}>
             {topSellers.length === 0 ? (
-              <div className="text-center py-20 text-slate-500">
-                <div className="text-5xl mb-4">⏳</div>
-                <div className="font-semibold">Waiting for whale trades...</div>
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏳</div>
+                <div style={{ fontWeight: 'bold', fontSize: '18px' }}>Waiting for whale trades...</div>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>Min: ${threshold.toLocaleString()}</div>
               </div>
             ) : (
               topSellers.map((coin, idx) => (
                 <div
                   key={coin.coin}
-                  className="grid grid-cols-4 gap-2 px-4 py-3 border-b border-slate-900 hover:bg-red-950/30 transition-colors"
+                  style={{
+                    ...styles.tableRow,
+                    backgroundColor: idx % 2 === 0 ? '#0f172a' : '#1a1f2e',
+                    borderBottomColor: '#1e293b',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#7f1d1d';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#0f172a' : '#1a1f2e';
+                  }}
                 >
-                  <span className="text-slate-500 font-bold">#{idx + 1}</span>
-                  <span className="text-red-400 font-bold">{coin.coin}</span>
-                  <span className="text-right text-white font-semibold">
+                  <span style={{ color: '#64748b', fontWeight: 'bold' }}>#{idx + 1}</span>
+                  <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '16px' }}>
+                    {coin.coin}
+                  </span>
+                  <span style={{ color: 'white', fontWeight: 'bold', textAlign: 'right' }}>
                     ${(coin.sellVolume / 1000).toFixed(1)}K
                   </span>
-                  <span className="text-right text-red-300">{coin.sellCount}</span>
+                  <span style={{ color: '#fca5a5', textAlign: 'right' }}>
+                    {coin.sellCount}
+                  </span>
                 </div>
               ))
             )}
@@ -423,8 +722,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="max-w-[1800px] mx-auto mt-6 text-center text-slate-500 text-sm py-4">
+      <div style={styles.footer}>
         Premium Multi-Exchange Whale Tracker • Real-time Futures Monitoring • Last Update: {lastUpdate.toLocaleTimeString()}
       </div>
     </div>
