@@ -1,99 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertCircle, TrendingUp, TrendingDown, Activity, Clock, Zap, Volume2, VolumeX } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Clock, Zap, Volume2, VolumeX } from 'lucide-react';
 
-const WhaleTrackerPro = () => {
+const WhaleTrackerMobile = () => {
   const [trades, setTrades] = useState([]);
   const [tradingPair, setTradingPair] = useState('BTCUSDT');
   const [isTracking, setIsTracking] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const [stats, setStats] = useState({
-    totalWhaleVolume: 0,
-    buyVolume: 0,
-    sellVolume: 0,
-    whaleCount: 0,
     binance: { total: 0, buy: 0, sell: 0, count: 0 },
     bybit: { total: 0, buy: 0, sell: 0, count: 0 },
     coinbase: { total: 0, buy: 0, sell: 0, count: 0 }
   });
-  const [marketInfo, setMarketInfo] = useState(null);
   const [thresholds, setThresholds] = useState({
     binance: 10000,
     bybit: 10000,
     coinbase: 10000
   });
-  const [lastUpdate, setLastUpdate] = useState(null);
   const intervalRef = useRef(null);
   const audioRef = useRef(null);
   const lastTradeIds = useRef({ binance: new Set(), bybit: new Set(), coinbase: new Set() });
 
-  // Her borsa için ayrı dinamik eşik hesaplama
-  const calculateAllThresholds = async (symbol) => {
-    const binanceSymbol = symbol.replace('/', '');
-    
-    // Coinbase sembol mapping
-    const symbolMap = {
-      'BTCUSDT': 'BTC-USD', 'ETHUSDT': 'ETH-USD', 'SOLUSDT': 'SOL-USD',
-      'AVAXUSDT': 'AVAX-USD', 'MATICUSDT': 'MATIC-USD', 'DOTUSDT': 'DOT-USD',
-      'LINKUSDT': 'LINK-USD', 'UNIUSDT': 'UNI-USD', 'LTCUSDT': 'LTC-USD',
-      'ADAUSDT': 'ADA-USD', 'ATOMUSDT': 'ATOM-USD', 'XRPUSDT': 'XRP-USD'
-    };
-    const coinbaseSymbol = symbolMap[symbol] || symbol.replace('USDT', '-USD');
-
+  // Dinamik eşik hesaplama
+  const calculateThresholds = async (symbol) => {
     try {
-      // BINANCE threshold
-      const binanceData = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${binanceSymbol}`)
-        .then(r => r.json())
-        .catch(() => null);
+      const binanceSymbol = symbol.replace('/', '');
+      const response = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${binanceSymbol}`);
+      const data = await response.json();
       
-      let binanceThreshold = 10000;
-      if (binanceData) {
-        const volume = parseFloat(binanceData.quoteVolume);
-        const count = parseFloat(binanceData.count);
-        const avg = volume / count;
-        binanceThreshold = Math.max(2000, Math.min(80000, avg * 10));
-      }
-
-      // BYBIT threshold
-      const bybitData = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${binanceSymbol}`)
-        .then(r => r.json())
-        .catch(() => null);
+      const volume = parseFloat(data.quoteVolume);
+      const count = parseFloat(data.count);
+      const avg = volume / count;
+      const threshold = Math.max(2000, Math.min(50000, avg * 8));
       
-      let bybitThreshold = 10000;
-      if (bybitData?.result?.list?.[0]) {
-        const item = bybitData.result.list[0];
-        const volume = parseFloat(item.turnover24h || 0);
-        const avg = volume / 100000; // Bybit işlem sayısı vermiyor, tahmin
-        bybitThreshold = Math.max(2000, Math.min(80000, avg * 10));
-      }
-
-      // COINBASE threshold
-      const coinbaseData = await fetch(`https://api.exchange.coinbase.com/products/${coinbaseSymbol}/stats`)
-        .then(r => r.status === 404 ? null : r.json())
-        .catch(() => null);
-      
-      let coinbaseThreshold = 10000;
-      if (coinbaseData) {
-        const volume = parseFloat(coinbaseData.volume || 0) * parseFloat(coinbaseData.last || 1);
-        const avg = volume / 50000; // Coinbase işlem sayısı yok, tahmin
-        coinbaseThreshold = Math.max(2000, Math.min(80000, avg * 10));
-      }
-
       setThresholds({
-        binance: Math.round(binanceThreshold),
-        bybit: Math.round(bybitThreshold),
-        coinbase: Math.round(coinbaseThreshold)
+        binance: Math.round(threshold),
+        bybit: Math.round(threshold),
+        coinbase: Math.round(threshold)
       });
-
-      setMarketInfo({
-        volume24h: binanceData ? parseFloat(binanceData.quoteVolume) : 0,
-        avgTradeSize: binanceData ? parseFloat(binanceData.quoteVolume) / parseFloat(binanceData.count) : 0,
-        lastPrice: binanceData ? parseFloat(binanceData.lastPrice) : 0,
-        tradeCount: binanceData ? parseFloat(binanceData.count) : 0
-      });
-
     } catch (error) {
-      console.error('Eşikler hesaplanamadı:', error);
-      setThresholds({ binance: 10000, bybit: 10000, coinbase: 10000 });
+      console.error('Eşik hesaplanamadı:', error);
     }
   };
 
@@ -101,124 +46,94 @@ const WhaleTrackerPro = () => {
   const playSound = () => {
     if (soundEnabled && audioRef.current) {
       audioRef.current.currentTime = 0;
-      audioRef.current.volume = 0.3;
-      audioRef.current.play().catch(e => console.log('Ses çalınamadı'));
+      audioRef.current.volume = 0.2;
+      audioRef.current.play().catch(() => {});
     }
   };
 
-  // BINANCE İşlemleri - kendi eşiği ile
-  const fetchBinanceTrades = async (symbol) => {
+  // BINANCE
+  const fetchBinance = async (symbol) => {
     try {
-      const binanceSymbol = symbol.replace('/', '');
-      const response = await fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${binanceSymbol}&limit=200`);
+      const response = await fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${symbol}&limit=100`);
       const data = await response.json();
-      
       const threshold = thresholds.binance;
       const whaleTrades = [];
       
       data.forEach(trade => {
-        const tradeValue = parseFloat(trade.p) * parseFloat(trade.q);
-        const tradeId = `binance-${trade.a}`;
+        const value = parseFloat(trade.p) * parseFloat(trade.q);
+        const id = `b-${trade.a}`;
         
-        if (tradeValue >= threshold && !lastTradeIds.current.binance.has(tradeId)) {
-          lastTradeIds.current.binance.add(tradeId);
-          
-          let whaleLevel = 'MEDIUM';
-          if (tradeValue >= threshold * 5) whaleLevel = 'MEGA';
-          else if (tradeValue >= threshold * 2) whaleLevel = 'LARGE';
-          
+        if (value >= threshold && !lastTradeIds.current.binance.has(id)) {
+          lastTradeIds.current.binance.add(id);
           whaleTrades.push({
-            id: tradeId,
-            exchange: 'BINANCE',
+            id,
+            exchange: 'BIN',
             timestamp: trade.T,
             price: parseFloat(trade.p),
             quantity: parseFloat(trade.q),
-            value: tradeValue,
+            value: value,
             side: trade.m ? 'SELL' : 'BUY',
-            whaleLevel: whaleLevel,
-            time: new Date(trade.T).toLocaleTimeString('tr-TR')
+            level: value >= threshold * 3 ? 'MEGA' : value >= threshold * 1.5 ? 'BIG' : 'MED',
+            time: new Date(trade.T).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
           });
         }
       });
       
-      if (lastTradeIds.current.binance.size > 500) {
-        const arr = Array.from(lastTradeIds.current.binance);
-        lastTradeIds.current.binance = new Set(arr.slice(-500));
-      }
-      
       return whaleTrades;
     } catch (error) {
-      console.error('Binance hatası:', error);
       return [];
     }
   };
 
-  // BYBIT İşlemleri - kendi eşiği ile
-  const fetchBybitTrades = async (symbol) => {
+  // BYBIT
+  const fetchBybit = async (symbol) => {
     try {
-      const bybitSymbol = symbol.replace('/', '');
-      const response = await fetch(`https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${bybitSymbol}&limit=200`);
+      const response = await fetch(`https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${symbol}&limit=100`);
       const data = await response.json();
       
-      if (!data.result || !data.result.list) return [];
+      if (!data.result?.list) return [];
       
       const threshold = thresholds.bybit;
       const whaleTrades = [];
       
       data.result.list.forEach(trade => {
-        const tradeValue = parseFloat(trade.price) * parseFloat(trade.size);
-        const tradeId = `bybit-${trade.execId}`;
+        const value = parseFloat(trade.price) * parseFloat(trade.size);
+        const id = `y-${trade.execId}`;
         
-        if (tradeValue >= threshold && !lastTradeIds.current.bybit.has(tradeId)) {
-          lastTradeIds.current.bybit.add(tradeId);
-          
-          let whaleLevel = 'MEDIUM';
-          if (tradeValue >= threshold * 5) whaleLevel = 'MEGA';
-          else if (tradeValue >= threshold * 2) whaleLevel = 'LARGE';
-          
+        if (value >= threshold && !lastTradeIds.current.bybit.has(id)) {
+          lastTradeIds.current.bybit.add(id);
           whaleTrades.push({
-            id: tradeId,
-            exchange: 'BYBIT',
+            id,
+            exchange: 'BYB',
             timestamp: parseInt(trade.time),
             price: parseFloat(trade.price),
             quantity: parseFloat(trade.size),
-            value: tradeValue,
+            value: value,
             side: trade.side === 'Buy' ? 'BUY' : 'SELL',
-            whaleLevel: whaleLevel,
-            time: new Date(parseInt(trade.time)).toLocaleTimeString('tr-TR')
+            level: value >= threshold * 3 ? 'MEGA' : value >= threshold * 1.5 ? 'BIG' : 'MED',
+            time: new Date(parseInt(trade.time)).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
           });
         }
       });
       
-      if (lastTradeIds.current.bybit.size > 500) {
-        const arr = Array.from(lastTradeIds.current.bybit);
-        lastTradeIds.current.bybit = new Set(arr.slice(-500));
-      }
-      
       return whaleTrades;
     } catch (error) {
-      console.error('Bybit hatası:', error);
       return [];
     }
   };
 
-  // COINBASE İşlemleri - kendi eşiği ile
-  const fetchCoinbaseTrades = async (symbol) => {
+  // COINBASE
+  const fetchCoinbase = async (symbol) => {
     try {
       const symbolMap = {
         'BTCUSDT': 'BTC-USD', 'ETHUSDT': 'ETH-USD', 'SOLUSDT': 'SOL-USD',
-        'AVAXUSDT': 'AVAX-USD', 'MATICUSDT': 'MATIC-USD', 'DOTUSDT': 'DOT-USD',
-        'LINKUSDT': 'LINK-USD', 'UNIUSDT': 'UNI-USD', 'LTCUSDT': 'LTC-USD',
-        'ADAUSDT': 'ADA-USD', 'ATOMUSDT': 'ATOM-USD', 'XRPUSDT': 'XRP-USD'
+        'AVAXUSDT': 'AVAX-USD', 'MATICUSDT': 'MATIC-USD', 'LINKUSDT': 'LINK-USD'
       };
       
       const coinbaseSymbol = symbolMap[symbol] || symbol.replace('USDT', '-USD');
-      const response = await fetch(`https://api.exchange.coinbase.com/products/${coinbaseSymbol}/trades?limit=200`);
+      const response = await fetch(`https://api.exchange.coinbase.com/products/${coinbaseSymbol}/trades?limit=100`);
       
-      if (response.status === 404) {
-        console.log(`${coinbaseSymbol} Coinbase'de mevcut değil`);
-        return [];
-      }
+      if (response.status === 404) return [];
       
       const data = await response.json();
       if (!Array.isArray(data)) return [];
@@ -227,111 +142,89 @@ const WhaleTrackerPro = () => {
       const whaleTrades = [];
       
       data.forEach(trade => {
-        const tradeValue = parseFloat(trade.price) * parseFloat(trade.size);
-        const tradeId = `coinbase-${trade.trade_id}`;
+        const value = parseFloat(trade.price) * parseFloat(trade.size);
+        const id = `c-${trade.trade_id}`;
         
-        if (tradeValue >= threshold && !lastTradeIds.current.coinbase.has(tradeId)) {
-          lastTradeIds.current.coinbase.add(tradeId);
-          
-          let whaleLevel = 'MEDIUM';
-          if (tradeValue >= threshold * 5) whaleLevel = 'MEGA';
-          else if (tradeValue >= threshold * 2) whaleLevel = 'LARGE';
-          
+        if (value >= threshold && !lastTradeIds.current.coinbase.has(id)) {
+          lastTradeIds.current.coinbase.add(id);
           whaleTrades.push({
-            id: tradeId,
-            exchange: 'COINBASE',
+            id,
+            exchange: 'CBP',
             timestamp: new Date(trade.time).getTime(),
             price: parseFloat(trade.price),
             quantity: parseFloat(trade.size),
-            value: tradeValue,
+            value: value,
             side: trade.side === 'buy' ? 'BUY' : 'SELL',
-            whaleLevel: whaleLevel,
-            time: new Date(trade.time).toLocaleTimeString('tr-TR')
+            level: value >= threshold * 3 ? 'MEGA' : value >= threshold * 1.5 ? 'BIG' : 'MED',
+            time: new Date(trade.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
           });
         }
       });
       
-      if (lastTradeIds.current.coinbase.size > 500) {
-        const arr = Array.from(lastTradeIds.current.coinbase);
-        lastTradeIds.current.coinbase = new Set(arr.slice(-500));
-      }
-      
       return whaleTrades;
     } catch (error) {
-      console.error('Coinbase hatası:', error);
       return [];
     }
   };
 
-  // Tüm borsaları kontrol et
-  const fetchAllTrades = async () => {
+  // Tüm borsaları çek
+  const fetchAll = async () => {
     try {
-      const [binanceTrades, bybitTrades, coinbaseTrades] = await Promise.all([
-        fetchBinanceTrades(tradingPair),
-        fetchBybitTrades(tradingPair),
-        fetchCoinbaseTrades(tradingPair)
+      const symbol = tradingPair.replace('/', '');
+      const [b, y, c] = await Promise.all([
+        fetchBinance(symbol),
+        fetchBybit(symbol),
+        fetchCoinbase(symbol)
       ]);
       
-      const allNewTrades = [...binanceTrades, ...bybitTrades, ...coinbaseTrades]
-        .sort((a, b) => b.timestamp - a.timestamp);
+      const allTrades = [...b, ...y, ...c].sort((a, b) => b.timestamp - a.timestamp);
       
-      if (allNewTrades.length > 0) {
+      if (allTrades.length > 0) {
         playSound();
         
         setTrades(prev => {
-          const combined = [...allNewTrades, ...prev].slice(0, 100);
+          const combined = [...allTrades, ...prev].slice(0, 50);
           
-          // Toplam istatistikler
-          const buyVol = combined.filter(t => t.side === 'BUY').reduce((sum, t) => sum + t.value, 0);
-          const sellVol = combined.filter(t => t.side === 'SELL').reduce((sum, t) => sum + t.value, 0);
-          
-          // Borsa bazlı istatistikler
-          const binanceTrades = combined.filter(t => t.exchange === 'BINANCE');
-          const bybitTrades = combined.filter(t => t.exchange === 'BYBIT');
-          const coinbaseTrades = combined.filter(t => t.exchange === 'COINBASE');
+          const binanceTrades = combined.filter(t => t.exchange === 'BIN');
+          const bybitTrades = combined.filter(t => t.exchange === 'BYB');
+          const coinbaseTrades = combined.filter(t => t.exchange === 'CBP');
           
           setStats({
-            totalWhaleVolume: buyVol + sellVol,
-            buyVolume: buyVol,
-            sellVolume: sellVol,
-            whaleCount: combined.length,
             binance: {
               count: binanceTrades.length,
-              total: binanceTrades.reduce((sum, t) => sum + t.value, 0),
-              buy: binanceTrades.filter(t => t.side === 'BUY').reduce((sum, t) => sum + t.value, 0),
-              sell: binanceTrades.filter(t => t.side === 'SELL').reduce((sum, t) => sum + t.value, 0)
+              total: binanceTrades.reduce((s, t) => s + t.value, 0),
+              buy: binanceTrades.filter(t => t.side === 'BUY').reduce((s, t) => s + t.value, 0),
+              sell: binanceTrades.filter(t => t.side === 'SELL').reduce((s, t) => s + t.value, 0)
             },
             bybit: {
               count: bybitTrades.length,
-              total: bybitTrades.reduce((sum, t) => sum + t.value, 0),
-              buy: bybitTrades.filter(t => t.side === 'BUY').reduce((sum, t) => sum + t.value, 0),
-              sell: bybitTrades.filter(t => t.side === 'SELL').reduce((sum, t) => sum + t.value, 0)
+              total: bybitTrades.reduce((s, t) => s + t.value, 0),
+              buy: bybitTrades.filter(t => t.side === 'BUY').reduce((s, t) => s + t.value, 0),
+              sell: bybitTrades.filter(t => t.side === 'SELL').reduce((s, t) => s + t.value, 0)
             },
             coinbase: {
               count: coinbaseTrades.length,
-              total: coinbaseTrades.reduce((sum, t) => sum + t.value, 0),
-              buy: coinbaseTrades.filter(t => t.side === 'BUY').reduce((sum, t) => sum + t.value, 0),
-              sell: coinbaseTrades.filter(t => t.side === 'SELL').reduce((sum, t) => sum + t.value, 0)
+              total: coinbaseTrades.reduce((s, t) => s + t.value, 0),
+              buy: coinbaseTrades.filter(t => t.side === 'BUY').reduce((s, t) => s + t.value, 0),
+              sell: coinbaseTrades.filter(t => t.side === 'SELL').reduce((s, t) => s + t.value, 0)
             }
           });
           
           return combined;
         });
-        
-        setLastUpdate(new Date().toLocaleTimeString('tr-TR'));
       }
     } catch (error) {
-      console.error('İşlemler alınamadı:', error);
+      console.error('Fetch error:', error);
     }
   };
 
-  // Tracking başlat/durdur
+  // Tracking
   const toggleTracking = async () => {
     if (!isTracking) {
       lastTradeIds.current = { binance: new Set(), bybit: new Set(), coinbase: new Set() };
-      await calculateAllThresholds(tradingPair);
-      await fetchAllTrades();
-      intervalRef.current = setInterval(fetchAllTrades, 3000);
+      await calculateThresholds(tradingPair);
+      await fetchAll();
+      intervalRef.current = setInterval(fetchAll, 4000);
       setIsTracking(true);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -345,43 +238,32 @@ const WhaleTrackerPro = () => {
     };
   }, []);
 
-  const formatNumber = (num) => {
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `$${(num / 1000).toFixed(0)}K`;
-    return `$${num.toFixed(0)}`;
-  };
-
-  const getExchangeColor = (exchange) => {
-    switch(exchange) {
-      case 'BINANCE': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50';
-      case 'BYBIT': return 'bg-orange-500/20 text-orange-300 border-orange-500/50';
-      case 'COINBASE': return 'bg-blue-500/20 text-blue-300 border-blue-500/50';
-      default: return 'bg-gray-500/20 text-gray-300 border-gray-500/50';
-    }
+  const fmt = (n) => {
+    if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `$${(n / 1000).toFixed(0)}K`;
+    return `$${n.toFixed(0)}`;
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-3 sm:p-4">
+    <div className="min-h-screen bg-black text-white p-3">
       <audio ref={audioRef} src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiDcIGWi77eeeTRALUKfj8LZjHAY4ktfyy3ksBSR3x/DdkUAKFF60" />
       
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <div className="bg-gray-900 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 border border-gray-800">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <Activity className="w-6 h-6 text-white" />
-              </div>
+        <div className="bg-gray-900 rounded-2xl p-4 mb-3 border border-gray-800">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Activity className="w-7 h-7 text-blue-400" />
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white">Whale Tracker</h1>
-                <p className="text-sm text-gray-400">Multi-Exchange Pro</p>
+                <h1 className="text-xl font-bold">Whale Tracker</h1>
+                <p className="text-xs text-gray-500">iPhone Optimized</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700"
+                className="p-2 bg-gray-800 rounded-lg active:bg-gray-700"
               >
                 {soundEnabled ? 
                   <Volume2 className="w-5 h-5 text-green-400" /> : 
@@ -389,7 +271,7 @@ const WhaleTrackerPro = () => {
                 }
               </button>
               {isTracking && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-900 rounded-lg border border-green-700">
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-900 rounded-full">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                   <span className="text-xs font-bold text-green-400">LIVE</span>
                 </div>
@@ -397,319 +279,143 @@ const WhaleTrackerPro = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Trading Pair</label>
-              <select
-                value={tradingPair}
-                onChange={(e) => setTradingPair(e.target.value)}
-                disabled={isTracking}
-                className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <optgroup label="🔥 Popüler">
-                  <option value="BTCUSDT">BTC/USDT</option>
-                  <option value="ETHUSDT">ETH/USDT</option>
-                  <option value="SOLUSDT">SOL/USDT</option>
-                  <option value="BNBUSDT">BNB/USDT</option>
-                </optgroup>
-                <optgroup label="💎 Altcoin">
-                  <option value="XRPUSDT">XRP/USDT</option>
-                  <option value="ADAUSDT">ADA/USDT</option>
-                  <option value="DOGEUSDT">DOGE/USDT</option>
-                  <option value="AVAXUSDT">AVAX/USDT</option>
-                  <option value="DOTUSDT">DOT/USDT</option>
-                  <option value="MATICUSDT">MATIC/USDT</option>
-                  <option value="LINKUSDT">LINK/USDT</option>
-                  <option value="ATOMUSDT">ATOM/USDT</option>
-                  <option value="UNIUSDT">UNI/USDT</option>
-                  <option value="LTCUSDT">LTC/USDT</option>
-                  <option value="ETCUSDT">ETC/USDT</option>
-                  <option value="TRXUSDT">TRX/USDT</option>
-                </optgroup>
-                <optgroup label="🆕 Yeni Coinler">
-                  <option value="ARBUSDT">ARB/USDT</option>
-                  <option value="OPUSDT">OP/USDT</option>
-                  <option value="SUIUSDT">SUI/USDT</option>
-                  <option value="APTUSDT">APT/USDT</option>
-                  <option value="INJUSDT">INJ/USDT</option>
-                  <option value="PEPEUSDT">PEPE/USDT</option>
-                  <option value="SHIBUSDT">SHIB/USDT</option>
-                  <option value="FLOKIUSDT">FLOKI/USDT</option>
-                </optgroup>
-                <optgroup label="📊 DeFi">
-                  <option value="AAVEUSDT">AAVE/USDT</option>
-                  <option value="MKRUSDT">MKR/USDT</option>
-                  <option value="COMPUSDT">COMP/USDT</option>
-                  <option value="CRVUSDT">CRV/USDT</option>
-                  <option value="SUSHIUSDT">SUSHI/USDT</option>
-                </optgroup>
-                <optgroup label="🎮 Gaming/NFT">
-                  <option value="AXSUSDT">AXS/USDT</option>
-                  <option value="SANDUSDT">SAND/USDT</option>
-                  <option value="MANAUSDT">MANA/USDT</option>
-                  <option value="ENJUSDT">ENJ/USDT</option>
-                  <option value="GALAUSDT">GALA/USDT</option>
-                </optgroup>
-              </select>
-            </div>
+          <select
+            value={tradingPair}
+            onChange={(e) => setTradingPair(e.target.value)}
+            disabled={isTracking}
+            className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 mb-3 border border-gray-700 text-base"
+            style={{ fontSize: '16px' }}
+          >
+            <option value="BTCUSDT">BTC/USDT</option>
+            <option value="ETHUSDT">ETH/USDT</option>
+            <option value="SOLUSDT">SOL/USDT</option>
+            <option value="BNBUSDT">BNB/USDT</option>
+            <option value="XRPUSDT">XRP/USDT</option>
+            <option value="AVAXUSDT">AVAX/USDT</option>
+            <option value="ADAUSDT">ADA/USDT</option>
+            <option value="DOGEUSDT">DOGE/USDT</option>
+            <option value="MATICUSDT">MATIC/USDT</option>
+            <option value="LINKUSDT">LINK/USDT</option>
+          </select>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Whale Eşikleri (Borsa Bazlı)
-              </label>
-              <div className="bg-gray-800 rounded-lg px-4 py-3 border border-gray-700">
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div>
-                    <div className="text-yellow-400 text-xs font-medium mb-1">Binance</div>
-                    <div className="text-white text-base font-bold">{formatNumber(thresholds.binance)}</div>
-                  </div>
-                  <div>
-                    <div className="text-orange-400 text-xs font-medium mb-1">Bybit</div>
-                    <div className="text-white text-base font-bold">{formatNumber(thresholds.bybit)}</div>
-                  </div>
-                  <div>
-                    <div className="text-blue-400 text-xs font-medium mb-1">Coinbase</div>
-                    <div className="text-white text-base font-bold">{formatNumber(thresholds.coinbase)}</div>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-400 mt-2 text-center">
-                  {marketInfo ? `📊 ${marketInfo.tradeCount?.toLocaleString()} işlem/24s` : 'Hesaplanıyor...'}
-                </div>
+          <div className="bg-gray-800 rounded-xl px-4 py-3 mb-3">
+            <div className="text-xs text-gray-400 mb-2">Whale Eşikleri</div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div className="text-yellow-400 text-xs mb-1">BIN</div>
+                <div className="text-white text-sm font-bold">{fmt(thresholds.binance)}</div>
+              </div>
+              <div>
+                <div className="text-orange-400 text-xs mb-1">BYB</div>
+                <div className="text-white text-sm font-bold">{fmt(thresholds.bybit)}</div>
+              </div>
+              <div>
+                <div className="text-blue-400 text-xs mb-1">CBP</div>
+                <div className="text-white text-sm font-bold">{fmt(thresholds.coinbase)}</div>
               </div>
             </div>
           </div>
 
           <button
             onClick={toggleTracking}
-            className={`w-full mt-4 py-3 rounded-lg font-bold text-white transition-all text-base ${
-              isTracking 
-                ? 'bg-red-600 hover:bg-red-700' 
-                : 'bg-blue-600 hover:bg-blue-700'
+            className={`w-full py-4 rounded-xl font-bold text-lg active:scale-95 transition-transform ${
+              isTracking ? 'bg-red-600' : 'bg-blue-600'
             }`}
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            {isTracking ? '⏸ Tracking Durdur' : '▶ Tracking Başlat'}
+            {isTracking ? '⏸ Durdur' : '▶ Başlat'}
           </button>
         </div>
 
-        {/* İstatistikler */}
+        {/* Stats */}
         {isTracking && (
-          <>
-            {/* Borsa Kartları */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {/* BINANCE */}
-              <div className="bg-gray-900 rounded-xl p-4 border border-yellow-700">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
-                    <h3 className="text-yellow-300 font-bold text-lg">BINANCE</h3>
-                  </div>
-                  <div className="text-yellow-300 text-xl font-bold">{stats.binance.count}</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-green-400 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      Alış
-                    </span>
-                    <span className="text-white font-bold">{formatNumber(stats.binance.buy)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-red-400 flex items-center gap-1">
-                      <TrendingDown className="w-3 h-3" />
-                      Satış
-                    </span>
-                    <span className="text-white font-bold">{formatNumber(stats.binance.sell)}</span>
-                  </div>
-                  <div className="pt-2 border-t border-yellow-700/50">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-yellow-200 font-medium">Toplam</span>
-                      <span className="text-yellow-100 font-bold">{formatNumber(stats.binance.total)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs mt-1">
-                      <span className="text-yellow-300/70">Eşik</span>
-                      <span className="text-yellow-200 font-mono text-xs">{formatNumber(thresholds.binance)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* BYBIT */}
-              <div className="bg-gray-900 rounded-xl p-4 border border-orange-700">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-orange-400 rounded-full animate-pulse"></div>
-                    <h3 className="text-orange-300 font-bold text-lg">BYBIT</h3>
-                  </div>
-                  <div className="text-orange-300 text-xl font-bold">{stats.bybit.count}</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-green-400 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      Alış
-                    </span>
-                    <span className="text-white font-bold">{formatNumber(stats.bybit.buy)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-red-400 flex items-center gap-1">
-                      <TrendingDown className="w-3 h-3" />
-                      Satış
-                    </span>
-                    <span className="text-white font-bold">{formatNumber(stats.bybit.sell)}</span>
-                  </div>
-                  <div className="pt-2 border-t border-orange-700/50">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-orange-200 font-medium">Toplam</span>
-                      <span className="text-orange-100 font-bold">{formatNumber(stats.bybit.total)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs mt-1">
-                      <span className="text-orange-300/70">Eşik</span>
-                      <span className="text-orange-200 font-mono text-xs">{formatNumber(thresholds.bybit)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* COINBASE */}
-              <div className="bg-gray-900 rounded-xl p-4 border border-blue-700">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
-                    <h3 className="text-blue-300 font-bold text-lg">COINBASE</h3>
-                  </div>
-                  <div className="text-blue-300 text-xl font-bold">{stats.coinbase.count}</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-green-400 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      Alış
-                    </span>
-                    <span className="text-white font-bold">{formatNumber(stats.coinbase.buy)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-red-400 flex items-center gap-1">
-                      <TrendingDown className="w-3 h-3" />
-                      Satış
-                    </span>
-                    <span className="text-white font-bold">{formatNumber(stats.coinbase.sell)}</span>
-                  </div>
-                  <div className="pt-2 border-t border-blue-700/50">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-blue-200 font-medium">Toplam</span>
-                      <span className="text-blue-100 font-bold">{formatNumber(stats.coinbase.total)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs mt-1">
-                      <span className="text-blue-300/70">Eşik</span>
-                      <span className="text-blue-200 font-mono text-xs">{formatNumber(thresholds.coinbase)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="bg-gray-900 rounded-xl p-3 border border-yellow-700">
+              <div className="text-yellow-400 text-xs mb-1">BIN</div>
+              <div className="text-white text-lg font-bold">{stats.binance.count}</div>
+              <div className="text-green-400 text-xs mt-1">{fmt(stats.binance.buy)}</div>
+              <div className="text-red-400 text-xs">{fmt(stats.binance.sell)}</div>
             </div>
-
-            {/* Genel Özet */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="bg-gray-900 rounded-xl p-3 border border-green-700">
-                <div className="flex items-center gap-1 text-green-400 text-xs mb-1">
-                  <TrendingUp className="w-3 h-3" />
-                  <span className="font-medium">TOPLAM ALIŞ</span>
-                </div>
-                <div className="text-white text-lg font-bold">{formatNumber(stats.buyVolume)}</div>
-              </div>
-              <div className="bg-gray-900 rounded-xl p-3 border border-red-700">
-                <div className="flex items-center gap-1 text-red-400 text-xs mb-1">
-                  <TrendingDown className="w-3 h-3" />
-                  <span className="font-medium">TOPLAM SATIŞ</span>
-                </div>
-                <div className="text-white text-lg font-bold">{formatNumber(stats.sellVolume)}</div>
-              </div>
-              <div className="bg-gray-900 rounded-xl p-3 border border-gray-700">
-                <div className="text-gray-400 text-xs mb-1 font-medium">TÜM WHALE</div>
-                <div className="text-white text-lg font-bold">{stats.whaleCount} İşlem</div>
-              </div>
+            <div className="bg-gray-900 rounded-xl p-3 border border-orange-700">
+              <div className="text-orange-400 text-xs mb-1">BYB</div>
+              <div className="text-white text-lg font-bold">{stats.bybit.count}</div>
+              <div className="text-green-400 text-xs mt-1">{fmt(stats.bybit.buy)}</div>
+              <div className="text-red-400 text-xs">{fmt(stats.bybit.sell)}</div>
             </div>
-
-            {lastUpdate && (
-              <div className="text-center text-sm text-gray-500 mb-4">
-                Son Güncelleme: {lastUpdate}
-              </div>
-            )}
-          </>
+            <div className="bg-gray-900 rounded-xl p-3 border border-blue-700">
+              <div className="text-blue-400 text-xs mb-1">CBP</div>
+              <div className="text-white text-lg font-bold">{stats.coinbase.count}</div>
+              <div className="text-green-400 text-xs mt-1">{fmt(stats.coinbase.buy)}</div>
+              <div className="text-red-400 text-xs">{fmt(stats.coinbase.sell)}</div>
+            </div>
+          </div>
         )}
 
-        {/* Whale İşlemleri */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <div className="p-4 bg-gray-800 border-b border-gray-700">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-400" />
-              Whale İşlemleri
-            </h2>
+        {/* Trades */}
+        <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+          <div className="p-3 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-yellow-400" />
+            <span className="font-bold">Whale İşlemleri</span>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="max-h-[60vh] overflow-y-auto">
             {trades.length === 0 ? (
-              <div className="p-12 text-center text-gray-400">
-                <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-base">Henüz whale işlemi tespit edilmedi</p>
-                <p className="text-sm mt-2">3 borsa aynı anda taranıyor...</p>
+              <div className="p-8 text-center text-gray-500">
+                <Activity className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Henüz sinyal yok</p>
+                <p className="text-xs mt-1">3 borsa taranıyor...</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-800">
-                {trades.map((trade, index) => (
+                {trades.map((trade, i) => (
                   <div
                     key={trade.id}
-                    className={`p-4 hover:bg-gray-800 transition-all ${
-                      index === 0 ? 'bg-gray-800 border-l-4 border-blue-500' : ''
-                    }`}
+                    className={`p-3 active:bg-gray-800 ${i === 0 ? 'bg-gray-800 border-l-4 border-blue-500' : ''}`}
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
                   >
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getExchangeColor(trade.exchange)}`}>
-                          {trade.exchange}
-                        </div>
-                        
-                        <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-                          trade.whaleLevel === 'MEGA' 
-                            ? 'bg-purple-900 text-purple-300 border border-purple-600'
-                            : trade.whaleLevel === 'LARGE'
-                            ? 'bg-red-900 text-red-300 border border-red-600'
-                            : 'bg-yellow-900 text-yellow-300 border border-yellow-600'
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                          trade.exchange === 'BIN' ? 'bg-yellow-900 text-yellow-300' :
+                          trade.exchange === 'BYB' ? 'bg-orange-900 text-orange-300' :
+                          'bg-blue-900 text-blue-300'
                         }`}>
-                          {trade.whaleLevel} 🐋
-                        </div>
+                          {trade.exchange}
+                        </span>
                         
-                        <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-                          trade.side === 'BUY'
-                            ? 'bg-green-900 text-green-300 border border-green-600'
-                            : 'bg-red-900 text-red-300 border border-red-600'
+                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                          trade.level === 'MEGA' ? 'bg-purple-900 text-purple-300' :
+                          trade.level === 'BIG' ? 'bg-red-900 text-red-300' :
+                          'bg-gray-800 text-gray-300'
+                        }`}>
+                          {trade.level === 'MEGA' ? '🐋 MEGA' : trade.level === 'BIG' ? '🐳 BIG' : '🐟 MED'}
+                        </span>
+                        
+                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                          trade.side === 'BUY' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
                         }`}>
                           {trade.side}
-                        </div>
+                        </span>
                       </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                        <div>
-                          <div className="text-gray-500 text-xs">Değer</div>
-                          <div className="text-white font-bold">{formatNumber(trade.value)}</div>
-                        </div>
-                        
-                        <div>
-                          <div className="text-gray-500 text-xs">Fiyat</div>
-                          <div className="text-gray-300 font-mono">${trade.price.toLocaleString()}</div>
-                        </div>
-                        
-                        <div>
-                          <div className="text-gray-500 text-xs">Miktar</div>
-                          <div className="text-gray-300">{trade.quantity.toFixed(4)}</div>
-                        </div>
-
-                        <div>
-                          <div className="text-gray-500 text-xs flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> Saat
-                          </div>
-                          <div className="text-gray-300 font-mono">{trade.time}</div>
-                        </div>
+                      
+                      <div className="text-xs text-gray-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {trade.time}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <div className="text-gray-500">Değer</div>
+                        <div className="text-white font-bold">{fmt(trade.value)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">Fiyat</div>
+                        <div className="text-white">${trade.price.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">Miktar</div>
+                        <div className="text-white">{trade.quantity.toFixed(3)}</div>
                       </div>
                     </div>
                   </div>
@@ -720,14 +426,13 @@ const WhaleTrackerPro = () => {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 text-center text-gray-500 text-sm space-y-1">
-          <p>🌐 <strong>3 Borsa:</strong> Binance • Bybit • Coinbase</p>
-          <p>💡 Her borsa kendi 24s hacmine göre dinamik eşik • Min: $2K, Max: $80K</p>
-          <p>🔊 Sesli uyarı • 📱 Mobil uyumlu • ⚡ 3 saniyede bir güncelleme</p>
+        <div className="text-center text-gray-600 text-xs mt-3 pb-6">
+          <p>🌐 Binance • Bybit • Coinbase</p>
+          <p className="mt-1">📱 iPhone için optimize edildi</p>
         </div>
       </div>
     </div>
   );
 };
 
-export default WhaleTrackerPro;
+export default WhaleTrackerMobile;
