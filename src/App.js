@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Yeniden bağlanma gecikme süresi (milisecond)
 const RECONNECT_DELAY = 5000;
 // Dinamik liste için limit
-const PAIRS_LIMIT = 1000;
+const PAIRS_LIMIT = 100;
 
 export default function App() {
   // Trading pairs by exchange - Statik yedek listeler.
@@ -190,7 +190,7 @@ export default function App() {
 
   const [trades, setTrades] = useState([]);
   const [stats, setStats] = useState({ total: 0, buy: 0, sell: 0, volume: 0 });
-  const [threshold, setThreshold] = useState(60000);
+  const [threshold, setThreshold] = useState(80000);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState({});
   const [filters, setFilters] = useState({
@@ -198,9 +198,7 @@ export default function App() {
     exchange: '',
     side: '',
   });
-  const [selectedExchanges, setSelectedExchanges] = useState(
-    Object.keys(EXCHANGES)
-  );
+  const [selectedExchanges, setSelectedExchanges] = useState(['Binance']);
   const [dynamicPairs, setDynamicPairs] = useState({});
   const wsRefs = useRef({});
   const audioContextRef = useRef(null);
@@ -213,34 +211,23 @@ export default function App() {
 
       switch (exchangeName) {
         case 'Binance':
-          const binanceRes = await fetch(
-            'https://fapi.binance.com/fapi/v1/ticker/24hr'
-          );
+          const binanceRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
           tickers = await binanceRes.json();
           filteredPairs = tickers
             .filter((t) => {
               const symbol = t.symbol;
               if (!symbol.endsWith('USDT')) return false;
               const baseCoin = symbol.replace('USDT', '');
-              if (
-                baseCoin === 'BTC' ||
-                baseCoin === 'USDT' ||
-                baseCoin === 'USDC'
-              )
-                return false;
+              if (baseCoin === 'BTC' || baseCoin === 'USDT' || baseCoin === 'USDC') return false;
               return true;
             })
-            .sort(
-              (a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)
-            )
+            .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
             .slice(0, limit)
             .map((t) => t.symbol);
           break;
 
         case 'Bybit':
-          const bybitRes = await fetch(
-            'https://api.bybit.com/v5/market/tickers?category=linear'
-          );
+          const bybitRes = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
           const bybitData = await bybitRes.json();
           if (bybitData.result && bybitData.result.list) {
             filteredPairs = bybitData.result.list
@@ -248,53 +235,32 @@ export default function App() {
                 const symbol = t.symbol;
                 if (!symbol.endsWith('USDT')) return false;
                 const baseCoin = symbol.replace('USDT', '');
-                if (
-                  baseCoin === 'BTC' ||
-                  baseCoin === 'USDT' ||
-                  baseCoin === 'USDC'
-                )
-                  return false;
+                if (baseCoin === 'BTC' || baseCoin === 'USDT' || baseCoin === 'USDC') return false;
                 return true;
               })
-              .sort(
-                (a, b) =>
-                  parseFloat(b.turnover24h || 0) -
-                  parseFloat(a.turnover24h || 0)
-              )
+              .sort((a, b) => parseFloat(b.turnover24h || 0) - parseFloat(a.turnover24h || 0))
               .slice(0, limit)
               .map((t) => t.symbol);
           }
           break;
 
         case 'OKX':
-          const okxRes = await fetch(
-            'https://www.okx.com/api/v5/public/instruments?instType=SWAP'
-          );
+          const okxRes = await fetch('https://www.okx.com/api/v5/public/instruments?instType=SWAP');
           const okxData = await okxRes.json();
           if (okxData.data) {
-            const okxTickersRes = await fetch(
-              'https://www.okx.com/api/v5/market/tickers?instType=SWAP'
-            );
+            const okxTickersRes = await fetch('https://www.okx.com/api/v5/market/tickers?instType=SWAP');
             const okxTickersData = await okxTickersRes.json();
-
+            
             if (okxTickersData.data) {
               filteredPairs = okxTickersData.data
                 .filter((t) => {
                   const symbol = t.instId;
                   if (!symbol.endsWith('-USDT-SWAP')) return false;
                   const baseCoin = symbol.replace('-USDT-SWAP', '');
-                  if (
-                    baseCoin === 'BTC' ||
-                    baseCoin === 'USDT' ||
-                    baseCoin === 'USDC'
-                  )
-                    return false;
+                  if (baseCoin === 'BTC' || baseCoin === 'USDT' || baseCoin === 'USDC') return false;
                   return true;
                 })
-                .sort(
-                  (a, b) =>
-                    parseFloat(b.volCcy24h || 0) - parseFloat(a.volCcy24h || 0)
-                )
+                .sort((a, b) => parseFloat(b.volCcy24h || 0) - parseFloat(a.volCcy24h || 0))
                 .slice(0, limit)
                 .map((t) => t.instId);
             }
@@ -302,9 +268,7 @@ export default function App() {
           break;
 
         case 'KuCoin':
-          const kucoinRes = await fetch(
-            'https://api-futures.kucoin.com/api/v1/contracts/active'
-          );
+          const kucoinRes = await fetch('https://api-futures.kucoin.com/api/v1/contracts/active');
           const kucoinData = await kucoinRes.json();
           if (kucoinData.data) {
             filteredPairs = kucoinData.data
@@ -312,20 +276,10 @@ export default function App() {
                 const symbol = t.symbol;
                 if (!symbol.endsWith('USDT')) return false;
                 const baseCoin = symbol.replace('USDT', '').replace('M', '');
-                if (
-                  baseCoin === 'BTC' ||
-                  baseCoin === 'USDT' ||
-                  baseCoin === 'USDC' ||
-                  baseCoin === 'XBT'
-                )
-                  return false;
+                if (baseCoin === 'BTC' || baseCoin === 'USDT' || baseCoin === 'USDC' || baseCoin === 'XBT') return false;
                 return true;
               })
-              .sort(
-                (a, b) =>
-                  parseFloat(b.turnoverOf24h || 0) -
-                  parseFloat(a.turnoverOf24h || 0)
-              )
+              .sort((a, b) => parseFloat(b.turnoverOf24h || 0) - parseFloat(a.turnoverOf24h || 0))
               .slice(0, limit)
               .map((t) => t.symbol);
           }
@@ -343,21 +297,14 @@ export default function App() {
           ...prev,
           [exchangeName]: filteredPairs,
         }));
-        console.log(
-          `Fetched Top ${filteredPairs.length} Futures pairs for ${exchangeName}`
-        );
+        console.log(`Fetched Top ${filteredPairs.length} Futures pairs for ${exchangeName}`);
         return filteredPairs;
       } else {
-        console.warn(
-          `No futures pairs found for ${exchangeName}, using static list`
-        );
+        console.warn(`No futures pairs found for ${exchangeName}, using static list`);
         return EXCHANGES[exchangeName].pairs;
       }
     } catch (error) {
-      console.error(
-        `Error fetching top pairs for ${exchangeName}. Using static list.`,
-        error
-      );
+      console.error(`Error fetching top pairs for ${exchangeName}. Using static list.`, error);
       return EXCHANGES[exchangeName].pairs;
     }
   };
@@ -493,7 +440,7 @@ export default function App() {
 
   const connectOtherExchange = (exchangeName, pairsToConnect) => {
     const exchange = EXCHANGES[exchangeName];
-    const key = exchangeName + '-MAIN';
+    const key = exchangeName;
 
     const ws = new WebSocket(exchange.wsUrl());
 
@@ -723,8 +670,7 @@ export default function App() {
               ) : (
                 <span style={{ color: '#ef4444' }}>● Disconnected</span>
               )}{' '}
-              • {selectedExchanges.length} Active Exchanges • Top 100 Perpetual
-              Contracts
+              • {selectedExchanges.length} Active Exchanges • Top 100 Perpetual Contracts
             </p>
           </div>
 
@@ -857,7 +803,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Stats */}
         <div
           style={{
             display: 'grid',
@@ -866,54 +811,6 @@ export default function App() {
             marginTop: '20px',
           }}
         >
-          <div
-            style={{
-              backgroundColor: '#0f172a',
-              padding: '16px',
-              borderRadius: '12px',
-              border: '1px solid #1e293b',
-            }}
-          >
-            <div
-              style={{
-                color: '#94a3b8',
-                fontSize: '12px',
-                marginBottom: '6px',
-                fontWeight: '600',
-              }}
-            >
-              Total Trades
-            </div>
-            <div
-              style={{ color: '#60a5fa', fontSize: '28px', fontWeight: 'bold' }}
-            >
-              {stats.total.toLocaleString()}
-            </div>
-          </div>
-          <div
-            style={{
-              backgroundColor: '#0f172a',
-              padding: '16px',
-              borderRadius: '12px',
-              border: '1px solid #1e293b',
-            }}
-          >
-            <div
-              style={{
-                color: '#94a3b8',
-                fontSize: '12px',
-                marginBottom: '6px',
-                fontWeight: '600',
-              }}
-            >
-              Buy Orders
-            </div>
-            <div
-              style={{ color: '#22c55e', fontSize: '28px', fontWeight: 'bold' }}
-            >
-              {stats.buy.toLocaleString()}
-            </div>
-          </div>
           <div
             style={{
               backgroundColor: '#0f172a',
@@ -965,7 +862,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Coin Summary Table (New Section) */}
       {coinSummary.length > 0 && (
         <div
           style={{
@@ -993,7 +889,6 @@ export default function App() {
             Coin Bazında Toplu Özet (≥${threshold.toLocaleString()})
           </div>
 
-          {/* Coin Summary Table Header */}
           <div
             style={{
               display: 'grid',
@@ -1018,7 +913,6 @@ export default function App() {
             <span>Net Hacim (USD)</span>
           </div>
 
-          {/* Coin Summary Table Body */}
           <div style={{ backgroundColor: '#0f172a' }}>
             {coinSummary.map((data, idx) => (
               <div
@@ -1084,7 +978,6 @@ export default function App() {
                 </span>
               </div>
             ))}
-            {/* Overall Total Row */}
             <div
               style={{
                 display: 'grid',
@@ -1145,7 +1038,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Trades Table */}
       <div
         style={{
           maxWidth: '1800px',
@@ -1172,7 +1064,6 @@ export default function App() {
           Filtered Whale Trades (≥${threshold.toLocaleString()})
         </div>
 
-        {/* Table Header with Filters */}
         <div
           style={{
             display: 'grid',
@@ -1262,7 +1153,6 @@ export default function App() {
           <span style={{ textAlign: 'right' }}>Time</span>
         </div>
 
-        {/* Table Body */}
         <div
           style={{
             maxHeight: '700px',
@@ -1334,7 +1224,8 @@ export default function App() {
                   {trade.symbol
                     .replace('USDT', '')
                     .replace('-USDT', '')
-                    .replace('-USD', '')}
+                    .replace('-USD', '')
+                    .replace('M', '')}
                 </span>
                 <span style={{ color: '#cbd5e1', textAlign: 'right' }}>
                   $
@@ -1390,7 +1281,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Footer */}
       <div
         style={{
           maxWidth: '1800px',
@@ -1404,8 +1294,56 @@ export default function App() {
           border: '1px solid #334155',
         }}
       >
-        Multi-Exchange WebSocket API • Real-time Whale Trade Monitoring
+        Multi-Exchange Futures WebSocket API • Real-time Whale Trade Monitoring • Top 100 Perpetual Contracts
       </div>
     </div>
   );
-}
+}a3b8',
+                fontSize: '12px',
+                marginBottom: '6px',
+                fontWeight: '600',
+              }}
+            >
+              Total Trades
+            </div>
+            <div
+              style={{ color: '#60a5fa', fontSize: '28px', fontWeight: 'bold' }}
+            >
+              {stats.total.toLocaleString()}
+            </div>
+          </div>
+          <div
+            style={{
+              backgroundColor: '#0f172a',
+              padding: '16px',
+              borderRadius: '12px',
+              border: '1px solid #1e293b',
+            }}
+          >
+            <div
+              style={{
+                color: '#94a3b8',
+                fontSize: '12px',
+                marginBottom: '6px',
+                fontWeight: '600',
+              }}
+            >
+              Buy Orders
+            </div>
+            <div
+              style={{ color: '#22c55e', fontSize: '28px', fontWeight: 'bold' }}
+            >
+              {stats.buy.toLocaleString()}
+            </div>
+          </div>
+          <div
+            style={{
+              backgroundColor: '#0f172a',
+              padding: '16px',
+              borderRadius: '12px',
+              border: '1px solid #1e293b',
+            }}
+          >
+            <div
+              style={{
+                color: '#94
