@@ -1,32 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// Yeniden bağlanma gecikme süresi (milisecond)
 const RECONNECT_DELAY = 5000;
-// Dinamik liste için limit
 const PAIRS_LIMIT = 100;
 
 export default function App() {
-  // Trading pairs by exchange - Statik yedek listeler.
   const EXCHANGES = {
     Binance: {
-      pairs: [
-        'ETHUSDT',
-        'BNBUSDT',
-        'XRPUSDT',
-        'SOLUSDT',
-        'ADAUSDT',
-        'DOGEUSDT',
-        'TRXUSDT',
-        'LINKUSDT',
-        'AVAXUSDT',
-        'MATICUSDT',
-      ],
-      wsUrl: (symbol) =>
-        `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@aggTrade`,
+      pairs: ['ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'ADAUSDT', 'DOGEUSDT', 'TRXUSDT', 'LINKUSDT', 'AVAXUSDT', 'MATICUSDT'],
+      wsUrl: (symbol) => `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@aggTrade`,
       parseMessage: (data) => ({
-        id: data.a,
         symbol: data.s,
-        pair: data.s.replace('USDT', '-USDT'),
+        coin: data.s.replace('USDT', ''),
         quantity: parseFloat(data.q),
         price: parseFloat(data.p),
         total: parseFloat(data.p) * parseFloat(data.q),
@@ -34,110 +18,46 @@ export default function App() {
         time: new Date(data.T),
       }),
     },
-    Coinbase: {
-      pairs: [
-        'ETH-USD',
-        'SOL-USD',
-        'XRP-USD',
-        'ADA-USD',
-        'DOGE-USD',
-        'MATIC-USD',
-        'LINK-USD',
-      ],
-      wsUrl: () => `wss://ws-feed.exchange.coinbase.com`,
-      subscribe: (ws, pairs) => {
-        ws.send(
-          JSON.stringify({
-            type: 'subscribe',
-            product_ids: pairs,
-            channels: ['matches'],
-          })
-        );
-      },
-      parseMessage: (data) => {
-        if (data.type !== 'match') return null;
-        return {
-          id: data.trade_id,
-          symbol: data.product_id,
-          pair: data.product_id,
-          quantity: parseFloat(data.size),
-          price: parseFloat(data.price),
-          total: parseFloat(data.size) * parseFloat(data.price),
-          side: data.side === 'sell' ? 'SELL' : 'BUY',
-          time: new Date(data.time),
-        };
-      },
-    },
     Bybit: {
-      pairs: [
-        'ETHUSDT',
-        'SOLUSDT',
-        'XRPUSDT',
-        'DOGEUSDT',
-        'ADAUSDT',
-        'MATICUSDT',
-        'LINKUSDT',
-      ],
+      pairs: ['ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'MATICUSDT', 'LINKUSDT'],
       wsUrl: () => `wss://stream.bybit.com/v5/public/linear`,
       subscribe: (ws, pairs) => {
         pairs.forEach((pair) => {
-          ws.send(
-            JSON.stringify({
-              op: 'subscribe',
-              args: [`publicTrade.${pair}`],
-            })
-          );
+          ws.send(JSON.stringify({ op: 'subscribe', args: [`publicTrade.${pair}`] }));
         });
       },
       parseMessage: (data) => {
-        if (data.topic && data.topic.startsWith('publicTrade')) {
-          const trades = data.data;
-          if (trades && trades.length > 0) {
-            const trade = trades[0];
-            return {
-              id: trade.i,
-              symbol: trade.s,
-              pair: trade.s.replace('USDT', '-USDT'),
-              quantity: parseFloat(trade.v),
-              price: parseFloat(trade.p),
-              total: parseFloat(trade.v) * parseFloat(trade.p),
-              side: trade.S === 'Sell' ? 'SELL' : 'BUY',
-              time: new Date(trade.T),
-            };
-          }
+        if (data.topic?.startsWith('publicTrade') && data.data?.[0]) {
+          const trade = data.data[0];
+          return {
+            symbol: trade.s,
+            coin: trade.s.replace('USDT', ''),
+            quantity: parseFloat(trade.v),
+            price: parseFloat(trade.p),
+            total: parseFloat(trade.v) * parseFloat(trade.p),
+            side: trade.S === 'Sell' ? 'SELL' : 'BUY',
+            time: new Date(trade.T),
+          };
         }
         return null;
       },
     },
     OKX: {
-      pairs: [
-        'ETH-USDT-SWAP',
-        'SOL-USDT-SWAP',
-        'XRP-USDT-SWAP',
-        'DOGE-USDT-SWAP',
-        'ADA-USDT-SWAP',
-        'MATIC-USDT-SWAP',
-        'LINK-USDT-SWAP',
-      ],
+      pairs: ['ETH-USDT-SWAP', 'SOL-USDT-SWAP', 'XRP-USDT-SWAP', 'DOGE-USDT-SWAP', 'ADA-USDT-SWAP'],
       wsUrl: () => `wss://ws.okx.com:8443/ws/v5/public`,
       subscribe: (ws, pairs) => {
-        ws.send(
-          JSON.stringify({
-            op: 'subscribe',
-            args: pairs.map((pair) => ({
-              channel: 'trades',
-              instId: pair,
-            })),
-          })
-        );
+        ws.send(JSON.stringify({
+          op: 'subscribe',
+          args: pairs.map((pair) => ({ channel: 'trades', instId: pair })),
+        }));
       },
       parseMessage: (data) => {
-        if (data.arg && data.arg.channel === 'trades' && data.data) {
+        if (data.arg?.channel === 'trades' && data.data?.[0]) {
           const trade = data.data[0];
+          const coin = data.arg.instId.split('-')[0];
           return {
-            id: trade.tradeId,
             symbol: data.arg.instId,
-            pair: data.arg.instId,
+            coin: coin,
             quantity: parseFloat(trade.sz),
             price: parseFloat(trade.px),
             total: parseFloat(trade.sz) * parseFloat(trade.px),
@@ -148,1202 +68,365 @@ export default function App() {
         return null;
       },
     },
-    KuCoin: {
-      pairs: [
-        'ETHUSDTM',
-        'SOLUSDTM',
-        'XRPUSDTM',
-        'DOGEUSDTM',
-        'ADAUSDTM',
-        'MATICUSDTM',
-        'LINKUSDTM',
-      ],
-      wsUrl: () => `wss://ws-api-futures.kucoin.com/`,
-      subscribe: (ws, pairs) => {
-        ws.send(
-          JSON.stringify({
-            id: Date.now(),
-            type: 'subscribe',
-            topic: '/contractMarket/execution:' + pairs.join(','),
-            response: true,
-          })
-        );
-      },
-      parseMessage: (data) => {
-        if (data.topic && data.topic.startsWith('/contractMarket/execution')) {
-          const trade = data.data;
-          return {
-            id: trade.tradeId,
-            symbol: trade.symbol,
-            pair: trade.symbol.replace('USDTM', '-USDT'),
-            quantity: parseFloat(trade.size),
-            price: parseFloat(trade.price),
-            total: parseFloat(trade.size) * parseFloat(trade.price),
-            side: trade.side === 'sell' ? 'SELL' : 'BUY',
-            time: new Date(parseInt(trade.ts) / 1000000),
-          };
-        }
-        return null;
-      },
-    },
   };
 
-  const [trades, setTrades] = useState([]);
-  const [stats, setStats] = useState({ total: 0, buy: 0, sell: 0, volume: 0 });
-  const [threshold, setThreshold] = useState(80000);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState({});
-  const [filters, setFilters] = useState({
-    name: '',
-    exchange: '',
-    side: '',
-  });
+  const [coinData, setCoinData] = useState({});
+  const [threshold, setThreshold] = useState(50000);
   const [selectedExchanges, setSelectedExchanges] = useState(['Binance']);
-  const [dynamicPairs, setDynamicPairs] = useState({});
+  const [connectionStatus, setConnectionStatus] = useState({});
+  const [lastUpdate, setLastUpdate] = useState(new Date());
   const wsRefs = useRef({});
-  const audioContextRef = useRef(null);
 
-  // Tüm borsalardan en çok hacme sahip perpetual futures çiftlerini çekme fonksiyonu
-  const fetchTopPairs = async (exchangeName, limit = PAIRS_LIMIT) => {
+  const fetchTopPairs = async (exchangeName) => {
     try {
-      let tickers = [];
-      let filteredPairs = [];
-
+      let pairs = [];
       switch (exchangeName) {
         case 'Binance':
-          const binanceRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-          tickers = await binanceRes.json();
-          filteredPairs = tickers
-            .filter((t) => {
-              const symbol = t.symbol;
-              if (!symbol.endsWith('USDT')) return false;
-              const baseCoin = symbol.replace('USDT', '');
-              if (baseCoin === 'BTC' || baseCoin === 'USDT' || baseCoin === 'USDC') return false;
-              return true;
-            })
+          const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+          const tickers = await res.json();
+          pairs = tickers
+            .filter((t) => t.symbol.endsWith('USDT') && !['BTCUSDT', 'USDTUSDT'].includes(t.symbol))
             .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-            .slice(0, limit)
+            .slice(0, PAIRS_LIMIT)
             .map((t) => t.symbol);
           break;
-
         case 'Bybit':
           const bybitRes = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
           const bybitData = await bybitRes.json();
-          if (bybitData.result && bybitData.result.list) {
-            filteredPairs = bybitData.result.list
-              .filter((t) => {
-                const symbol = t.symbol;
-                if (!symbol.endsWith('USDT')) return false;
-                const baseCoin = symbol.replace('USDT', '');
-                if (baseCoin === 'BTC' || baseCoin === 'USDT' || baseCoin === 'USDC') return false;
-                return true;
-              })
+          if (bybitData.result?.list) {
+            pairs = bybitData.result.list
+              .filter((t) => t.symbol.endsWith('USDT') && !['BTCUSDT', 'USDTUSDT'].includes(t.symbol))
               .sort((a, b) => parseFloat(b.turnover24h || 0) - parseFloat(a.turnover24h || 0))
-              .slice(0, limit)
+              .slice(0, PAIRS_LIMIT)
               .map((t) => t.symbol);
           }
           break;
-
         case 'OKX':
-          const okxRes = await fetch('https://www.okx.com/api/v5/public/instruments?instType=SWAP');
+          const okxRes = await fetch('https://www.okx.com/api/v5/market/tickers?instType=SWAP');
           const okxData = await okxRes.json();
           if (okxData.data) {
-            const okxTickersRes = await fetch('https://www.okx.com/api/v5/market/tickers?instType=SWAP');
-            const okxTickersData = await okxTickersRes.json();
-            
-            if (okxTickersData.data) {
-              filteredPairs = okxTickersData.data
-                .filter((t) => {
-                  const symbol = t.instId;
-                  if (!symbol.endsWith('-USDT-SWAP')) return false;
-                  const baseCoin = symbol.replace('-USDT-SWAP', '');
-                  if (baseCoin === 'BTC' || baseCoin === 'USDT' || baseCoin === 'USDC') return false;
-                  return true;
-                })
-                .sort((a, b) => parseFloat(b.volCcy24h || 0) - parseFloat(a.volCcy24h || 0))
-                .slice(0, limit)
-                .map((t) => t.instId);
-            }
+            pairs = okxData.data
+              .filter((t) => t.instId.endsWith('-USDT-SWAP') && !t.instId.startsWith('BTC-'))
+              .sort((a, b) => parseFloat(b.volCcy24h || 0) - parseFloat(a.volCcy24h || 0))
+              .slice(0, PAIRS_LIMIT)
+              .map((t) => t.instId);
           }
           break;
-
-        case 'KuCoin':
-          const kucoinRes = await fetch('https://api-futures.kucoin.com/api/v1/contracts/active');
-          const kucoinData = await kucoinRes.json();
-          if (kucoinData.data) {
-            filteredPairs = kucoinData.data
-              .filter((t) => {
-                const symbol = t.symbol;
-                if (!symbol.endsWith('USDT')) return false;
-                const baseCoin = symbol.replace('USDT', '').replace('M', '');
-                if (baseCoin === 'BTC' || baseCoin === 'USDT' || baseCoin === 'USDC' || baseCoin === 'XBT') return false;
-                return true;
-              })
-              .sort((a, b) => parseFloat(b.turnoverOf24h || 0) - parseFloat(a.turnoverOf24h || 0))
-              .slice(0, limit)
-              .map((t) => t.symbol);
-          }
-          break;
-
-        case 'Coinbase':
-          return EXCHANGES[exchangeName].pairs;
-
         default:
-          return EXCHANGES[exchangeName].pairs;
+          pairs = EXCHANGES[exchangeName].pairs;
       }
-
-      if (filteredPairs.length > 0) {
-        setDynamicPairs((prev) => ({
-          ...prev,
-          [exchangeName]: filteredPairs,
-        }));
-        console.log(`Fetched Top ${filteredPairs.length} Futures pairs for ${exchangeName}`);
-        return filteredPairs;
-      } else {
-        console.warn(`No futures pairs found for ${exchangeName}, using static list`);
-        return EXCHANGES[exchangeName].pairs;
-      }
+      return pairs.length > 0 ? pairs : EXCHANGES[exchangeName].pairs;
     } catch (error) {
-      console.error(`Error fetching top pairs for ${exchangeName}. Using static list.`, error);
+      console.error(`Error fetching pairs for ${exchangeName}:`, error);
       return EXCHANGES[exchangeName].pairs;
     }
   };
 
-  const playBuySound = () => {
-    if (!soundEnabled) return;
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext ||
-          window.webkitAudioContext)();
-      }
-      const ctx = audioContextRef.current;
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      oscillator.frequency.value = 300;
-      oscillator.type = 'sine';
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.1);
-    } catch (e) {}
-  };
-
-  const playSellSound = () => {
-    if (!soundEnabled) return;
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext ||
-          window.webkitAudioContext)();
-      }
-      const ctx = audioContextRef.current;
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      oscillator.frequency.value = 100;
-      oscillator.type = 'sine';
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.3);
-    } catch (e) {}
-  };
-
   const handleTradeUpdate = (trade, exchangeName) => {
-    if (trade && trade.total >= threshold) {
-      const enrichedTrade = { ...trade, exchange: exchangeName };
-      setTrades((prev) => [enrichedTrade, ...prev].slice(0, 200));
+    if (!trade || trade.total < threshold) return;
+    
+    setLastUpdate(new Date());
+    setCoinData((prev) => {
+      const current = prev[trade.coin] || {
+        coin: trade.coin,
+        buyVolume: 0,
+        sellVolume: 0,
+        buyCount: 0,
+        sellCount: 0,
+        totalVolume: 0,
+        lastPrice: 0,
+        lastUpdate: new Date(),
+      };
 
-      setStats((prev) => ({
-        total: prev.total + 1,
-        buy: prev.buy + (trade.side === 'BUY' ? 1 : 0),
-        sell: prev.sell + (trade.side === 'SELL' ? 1 : 0),
-        volume: prev.volume + trade.total,
-      }));
-      if (trade.side === 'BUY') {
-        playBuySound();
-      } else {
-        playSellSound();
-      }
-    }
-  };
-
-  const reconnect = (exchangeName, symbol = null, pairsToConnect = null) => {
-    const key = symbol ? `${exchangeName}-${symbol}` : exchangeName;
-
-    if (
-      wsRefs.current[key] &&
-      (wsRefs.current[key].readyState === WebSocket.CONNECTING ||
-        wsRefs.current[key].reconnectTimeout)
-    ) {
-      return;
-    }
-
-    clearTimeout(wsRefs.current[key]?.reconnectTimeout);
-
-    setConnectionStatus((prev) => ({
-      ...prev,
-      [key]: false,
-    }));
-
-    console.log(
-      `Connection for ${key} closed. Attempting reconnect in ${
-        RECONNECT_DELAY / 1000
-      }s...`
-    );
-
-    const timeoutId = setTimeout(() => {
-      if (symbol) {
-        connectBinanceSymbol(exchangeName, symbol);
-      } else {
-        connectOtherExchange(exchangeName, pairsToConnect);
-      }
-      delete wsRefs.current[key].reconnectTimeout;
-    }, RECONNECT_DELAY);
-
-    if (wsRefs.current[key]) {
-      wsRefs.current[key].reconnectTimeout = timeoutId;
-    }
+      return {
+        ...prev,
+        [trade.coin]: {
+          ...current,
+          buyVolume: current.buyVolume + (trade.side === 'BUY' ? trade.total : 0),
+          sellVolume: current.sellVolume + (trade.side === 'SELL' ? trade.total : 0),
+          buyCount: current.buyCount + (trade.side === 'BUY' ? 1 : 0),
+          sellCount: current.sellCount + (trade.side === 'SELL' ? 1 : 0),
+          totalVolume: current.totalVolume + trade.total,
+          lastPrice: trade.price,
+          lastUpdate: new Date(),
+        },
+      };
+    });
   };
 
   const connectBinanceSymbol = (exchangeName, symbol) => {
     const exchange = EXCHANGES[exchangeName];
     const key = `${exchangeName}-${symbol}`;
-
     const ws = new WebSocket(exchange.wsUrl(symbol));
 
     ws.onopen = () => {
       setConnectionStatus((prev) => ({ ...prev, [key]: true }));
-      console.log(`${key} connected`);
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       const trade = exchange.parseMessage(data);
-      handleTradeUpdate(trade, exchangeName);
+      if (trade) handleTradeUpdate(trade, exchangeName);
     };
 
-    ws.onerror = (error) => {
-      console.error(`${key} error:`, error);
-      reconnect(exchangeName, symbol);
+    ws.onerror = () => {
+      setConnectionStatus((prev) => ({ ...prev, [key]: false }));
     };
 
     ws.onclose = () => {
-      console.log(`${key} closed.`);
-      reconnect(exchangeName, symbol);
+      setConnectionStatus((prev) => ({ ...prev, [key]: false }));
+      setTimeout(() => connectBinanceSymbol(exchangeName, symbol), RECONNECT_DELAY);
     };
 
     wsRefs.current[key] = ws;
   };
 
-  const connectOtherExchange = (exchangeName, pairsToConnect) => {
+  const connectOtherExchange = (exchangeName, pairs) => {
     const exchange = EXCHANGES[exchangeName];
-    const key = exchangeName;
-
     const ws = new WebSocket(exchange.wsUrl());
 
     ws.onopen = () => {
-      setConnectionStatus((prev) => ({ ...prev, [key]: true }));
-      console.log(`${key} connected`);
-      if (exchange.subscribe) {
-        exchange.subscribe(ws, pairsToConnect);
-      }
+      setConnectionStatus((prev) => ({ ...prev, [exchangeName]: true }));
+      if (exchange.subscribe) exchange.subscribe(ws, pairs);
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       const trade = exchange.parseMessage(data);
-      if (trade) {
-        handleTradeUpdate(trade, exchangeName);
-      }
+      if (trade) handleTradeUpdate(trade, exchangeName);
     };
 
-    ws.onerror = (error) => {
-      console.error(`${key} error:`, error);
-      reconnect(exchangeName, null, pairsToConnect);
+    ws.onerror = () => {
+      setConnectionStatus((prev) => ({ ...prev, [exchangeName]: false }));
     };
 
     ws.onclose = () => {
-      console.log(`${key} closed.`);
-      reconnect(exchangeName, null, pairsToConnect);
+      setConnectionStatus((prev) => ({ ...prev, [exchangeName]: false }));
+      setTimeout(() => connectOtherExchange(exchangeName, pairs), RECONNECT_DELAY);
     };
 
-    wsRefs.current[key] = ws;
+    wsRefs.current[exchangeName] = ws;
   };
 
   useEffect(() => {
     Object.values(wsRefs.current).forEach((ws) => {
-      clearTimeout(ws.reconnectTimeout);
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
+      if (ws?.readyState === WebSocket.OPEN) ws.close();
     });
     wsRefs.current = {};
 
-    const connectExchanges = async () => {
-      const connectionPromises = selectedExchanges.map(async (exchangeName) => {
-        const exchange = EXCHANGES[exchangeName];
-        if (!exchange) return;
-
-        const pairsToConnect = await fetchTopPairs(exchangeName, PAIRS_LIMIT);
-
+    const connectAll = async () => {
+      for (const exchangeName of selectedExchanges) {
+        const pairs = await fetchTopPairs(exchangeName);
         if (exchangeName === 'Binance') {
-          pairsToConnect.forEach((symbol) => {
-            connectBinanceSymbol(exchangeName, symbol);
-          });
+          pairs.forEach((symbol) => connectBinanceSymbol(exchangeName, symbol));
         } else {
-          connectOtherExchange(exchangeName, pairsToConnect);
+          connectOtherExchange(exchangeName, pairs);
         }
-      });
-
-      await Promise.all(connectionPromises);
+      }
     };
 
-    connectExchanges();
+    connectAll();
 
     return () => {
       Object.values(wsRefs.current).forEach((ws) => {
-        clearTimeout(ws.reconnectTimeout);
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
+        if (ws?.readyState === WebSocket.OPEN) ws.close();
       });
     };
-  }, [threshold, soundEnabled, selectedExchanges]);
+  }, [selectedExchanges, threshold]);
 
-  const handleReset = () => {
-    setTrades([]);
-    setStats({ total: 0, buy: 0, sell: 0, volume: 0 });
-  };
+  const topBuyers = Object.values(coinData)
+    .sort((a, b) => b.buyVolume - a.buyVolume)
+    .slice(0, 100);
 
-  const handleFilterChange = (filterType, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [filterType]: value,
-    }));
-  };
+  const topSellers = Object.values(coinData)
+    .sort((a, b) => b.sellVolume - a.sellVolume)
+    .slice(0, 100);
 
-  const toggleExchange = (exchangeName) => {
-    setSelectedExchanges((prev) => {
-      if (prev.includes(exchangeName)) {
-        return prev.filter((e) => e !== exchangeName);
-      } else {
-        return [...prev, exchangeName];
-      }
-    });
-  };
-
-  const filteredTrades = trades.filter((trade) => {
-    if (
-      filters.name &&
-      !trade.pair.toUpperCase().includes(filters.name.toUpperCase())
-    ) {
-      return false;
-    }
-    if (filters.exchange && trade.exchange !== filters.exchange) {
-      return false;
-    }
-    if (filters.side && trade.side !== filters.side) {
-      return false;
-    }
-    return true;
-  });
-
-  const uniqueNames = [...new Set(trades.map((t) => t.pair))].sort();
-  const uniqueExchanges = [...new Set(trades.map((t) => t.exchange))].sort();
-  const isAnyConnected = Object.values(connectionStatus).some(
-    (status) => status === true
+  const totalStats = Object.values(coinData).reduce(
+    (acc, coin) => ({
+      totalBuyVolume: acc.totalBuyVolume + coin.buyVolume,
+      totalSellVolume: acc.totalSellVolume + coin.sellVolume,
+      totalBuyCount: acc.totalBuyCount + coin.buyCount,
+      totalSellCount: acc.totalSellCount + coin.sellCount,
+    }),
+    { totalBuyVolume: 0, totalSellVolume: 0, totalBuyCount: 0, totalSellCount: 0 }
   );
 
-  const formatTime = (date) => {
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000);
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const calculateCoinSummary = () => {
-    const summaryData = filteredTrades.reduce((acc, trade) => {
-      const pairParts = trade.pair.split('-');
-      const coinName = pairParts[0];
-
-      if (!acc[coinName]) {
-        acc[coinName] = {
-          totalCount: 0,
-          totalQuantity: 0,
-          totalVolume: 0,
-          buyQuantity: 0,
-          sellQuantity: 0,
-          buyVolume: 0,
-          sellVolume: 0,
-        };
-      }
-
-      acc[coinName].totalCount += 1;
-      acc[coinName].totalQuantity += trade.quantity;
-      acc[coinName].totalVolume += trade.total;
-
-      if (trade.side === 'BUY') {
-        acc[coinName].buyQuantity += trade.quantity;
-        acc[coinName].buyVolume += trade.total;
-      } else {
-        acc[coinName].sellQuantity += trade.quantity;
-        acc[coinName].sellVolume += trade.total;
-      }
-
-      return acc;
-    }, {});
-
-    return Object.entries(summaryData)
-      .map(([coin, data]) => ({
-        coinName: coin,
-        ...data,
-      }))
-      .sort((a, b) => b.totalVolume - a.totalVolume);
-  };
-
-  const coinSummary = calculateCoinSummary();
-
-  const overallTotal = coinSummary.reduce(
-    (acc, curr) => {
-      acc.totalCount += curr.totalCount;
-      acc.totalVolume += curr.totalVolume;
-      acc.buyVolume += curr.buyVolume;
-      acc.sellVolume += curr.sellVolume;
-      return acc;
-    },
-    { totalCount: 0, totalVolume: 0, buyVolume: 0, sellVolume: 0 }
-  );
+  const isConnected = Object.values(connectionStatus).some((s) => s);
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background:
-          'linear-gradient(to bottom right, #0f172a, #1e293b, #0f172a)',
-        padding: '16px',
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      }}
-    >
-      <div
-        style={{
-          maxWidth: '1800px',
-          margin: '0 auto 16px',
-          backgroundColor: '#1e293b',
-          borderRadius: '16px',
-          padding: '20px',
-          border: '1px solid #334155',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '16px',
-          }}
-        >
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
+      {/* Header */}
+      <div className="max-w-[1800px] mx-auto mb-6 bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700 shadow-2xl">
+        <div className="flex justify-between items-start flex-wrap gap-6">
           <div>
-            <h1
-              style={{
-                color: 'white',
-                fontSize: '28px',
-                margin: '0 0 8px 0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-              }}
-            >
-              🐋 Multi-Exchange Futures Whale Tracker
+            <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
+              <span className="text-5xl">🐋</span>
+              Premium Whale Tracker
             </h1>
-            <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
-              {isAnyConnected ? (
-                <span style={{ color: '#22c55e' }}>● Live</span>
-              ) : (
-                <span style={{ color: '#ef4444' }}>● Disconnected</span>
-              )}{' '}
-              • {selectedExchanges.length} Active Exchanges • Top 100 Perpetual Contracts
-            </p>
+            <div className="flex items-center gap-4 text-sm">
+              <span className={`flex items-center gap-2 ${isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></span>
+                {isConnected ? 'LIVE' : 'DISCONNECTED'}
+              </span>
+              <span className="text-slate-400">•</span>
+              <span className="text-slate-400">{selectedExchanges.length} Active Exchanges</span>
+              <span className="text-slate-400">•</span>
+              <span className="text-slate-400">Top 100 Futures</span>
+            </div>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              gap: '12px',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-            }}
-          >
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
-            >
-              <label
-                style={{
-                  color: '#94a3b8',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                }}
-              >
-                Min Amount (USD)
-              </label>
+          <div className="flex gap-4 items-end flex-wrap">
+            <div>
+              <label className="text-xs text-slate-400 font-semibold mb-2 block">MIN AMOUNT (USD)</label>
               <input
                 type="number"
                 value={threshold}
                 onChange={(e) => setThreshold(Number(e.target.value))}
-                style={{
-                  width: '120px',
-                  padding: '8px 12px',
-                  backgroundColor: '#0f172a',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                  color: 'white',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                }}
+                className="w-36 px-4 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-semibold focus:ring-2 focus:ring-violet-500 focus:outline-none"
               />
             </div>
-
             <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              style={{
-                marginTop: '20px',
-                padding: '8px 16px',
-                backgroundColor: soundEnabled ? '#10b981' : '#6b7280',
-                border: 'none',
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '13px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
+              onClick={() => setCoinData({})}
+              className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-red-500/50"
             >
-              {soundEnabled ? '🔊 Sound On' : '🔇 Sound Off'}
-            </button>
-
-            <button
-              onClick={handleReset}
-              style={{
-                marginTop: '20px',
-                padding: '8px 16px',
-                backgroundColor: '#dc2626',
-                border: 'none',
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '13px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >
-              🔄 Reset
+              🔄 RESET
             </button>
           </div>
         </div>
 
-        <div
-          style={{
-            marginTop: '20px',
-            padding: '16px',
-            backgroundColor: '#0f172a',
-            borderRadius: '12px',
-            border: '1px solid #334155',
-          }}
-        >
-          <div
-            style={{
-              color: '#94a3b8',
-              fontSize: '12px',
-              fontWeight: '600',
-              marginBottom: '12px',
-            }}
-          >
-            SELECT EXCHANGES:
-          </div>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            {Object.keys(EXCHANGES).map((exchangeName) => (
+        {/* Exchange Selector */}
+        <div className="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-800">
+          <div className="text-xs text-slate-400 font-bold mb-3">SELECT EXCHANGES</div>
+          <div className="flex gap-3 flex-wrap">
+            {Object.keys(EXCHANGES).map((ex) => (
               <button
-                key={exchangeName}
-                onClick={() => toggleExchange(exchangeName)}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: selectedExchanges.includes(exchangeName)
-                    ? '#7c3aed'
-                    : '#334155',
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: 'white',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
+                key={ex}
+                onClick={() => {
+                  setSelectedExchanges((prev) =>
+                    prev.includes(ex) ? prev.filter((e) => e !== ex) : [...prev, ex]
+                  );
                 }}
+                className={`px-5 py-2 rounded-lg font-semibold transition-all ${
+                  selectedExchanges.includes(ex)
+                    ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/50'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}
               >
-                {selectedExchanges.includes(exchangeName) && '✓'} {exchangeName}
-                {connectionStatus[exchangeName] && (
-                  <span
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor: '#22c55e',
-                    }}
-                  ></span>
-                )}
+                {selectedExchanges.includes(ex) && '✓ '}{ex}
               </button>
             ))}
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '12px',
-            marginTop: '20px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#0f172a',
-              padding: '16px',
-              borderRadius: '12px',
-              border: '1px solid #1e293b',
-            }}
-          >
-            <div
-              style={{
-                color: '#94a3b8',
-                fontSize: '12px',
-                marginBottom: '6px',
-                fontWeight: '600',
-              }}
-            >
-              Sell Orders
-            </div>
-            <div
-              style={{ color: '#ef4444', fontSize: '28px', fontWeight: 'bold' }}
-            >
-              {stats.sell.toLocaleString()}
-            </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          <div className="bg-gradient-to-br from-emerald-950 to-emerald-900 p-4 rounded-xl border border-emerald-800">
+            <div className="text-emerald-400 text-xs font-bold mb-1">BUY VOLUME</div>
+            <div className="text-2xl font-bold text-white">${(totalStats.totalBuyVolume / 1000000).toFixed(2)}M</div>
+            <div className="text-emerald-300 text-sm mt-1">{totalStats.totalBuyCount.toLocaleString()} trades</div>
           </div>
-          <div
-            style={{
-              backgroundColor: '#0f172a',
-              padding: '16px',
-              borderRadius: '12px',
-              border: '1px solid #1e293b',
-            }}
-          >
-            <div
-              style={{
-                color: '#94a3b8',
-                fontSize: '12px',
-                marginBottom: '6px',
-                fontWeight: '600',
-              }}
-            >
-              Total Volume
+          <div className="bg-gradient-to-br from-red-950 to-red-900 p-4 rounded-xl border border-red-800">
+            <div className="text-red-400 text-xs font-bold mb-1">SELL VOLUME</div>
+            <div className="text-2xl font-bold text-white">${(totalStats.totalSellVolume / 1000000).toFixed(2)}M</div>
+            <div className="text-red-300 text-sm mt-1">{totalStats.totalSellCount.toLocaleString()} trades</div>
+          </div>
+          <div className="bg-gradient-to-br from-blue-950 to-blue-900 p-4 rounded-xl border border-blue-800">
+            <div className="text-blue-400 text-xs font-bold mb-1">NET FLOW</div>
+            <div className={`text-2xl font-bold ${totalStats.totalBuyVolume > totalStats.totalSellVolume ? 'text-emerald-400' : 'text-red-400'}`}>
+              ${Math.abs((totalStats.totalBuyVolume - totalStats.totalSellVolume) / 1000000).toFixed(2)}M
             </div>
-            <div
-              style={{ color: '#fbbf24', fontSize: '28px', fontWeight: 'bold' }}
-            >
-              ${(stats.volume / 1000000).toFixed(2)}M
-            </div>
+            <div className="text-blue-300 text-sm mt-1">{totalStats.totalBuyVolume > totalStats.totalSellVolume ? 'Buy pressure' : 'Sell pressure'}</div>
+          </div>
+          <div className="bg-gradient-to-br from-amber-950 to-amber-900 p-4 rounded-xl border border-amber-800">
+            <div className="text-amber-400 text-xs font-bold mb-1">ACTIVE COINS</div>
+            <div className="text-2xl font-bold text-white">{Object.keys(coinData).length}</div>
+            <div className="text-amber-300 text-sm mt-1">Tracked assets</div>
           </div>
         </div>
       </div>
 
-      {coinSummary.length > 0 && (
-        <div
-          style={{
-            maxWidth: '1800px',
-            margin: '0 auto 16px',
-            backgroundColor: '#1e293b',
-            borderRadius: '16px',
-            border: '1px solid #334155',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              background: 'linear-gradient(to right, #60a5fa, #3b82f6)',
-              padding: '16px 20px',
-              color: 'white',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span style={{ fontSize: '20px' }}>⭐</span>
-            Coin Bazında Toplu Özet (≥${threshold.toLocaleString()})
+      {/* Dual Pivot Tables */}
+      <div className="max-w-[1800px] mx-auto grid lg:grid-cols-2 gap-6">
+        {/* Top Buyers */}
+        <div className="bg-gradient-to-b from-emerald-900/20 to-slate-900 rounded-2xl border border-emerald-800/50 overflow-hidden shadow-2xl">
+          <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              📈 TOP 100 BUY VOLUME
+            </h2>
           </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr repeat(5, minmax(120px, 1fr))',
-              gap: '12px',
-              padding: '14px 20px',
-              fontSize: '11px',
-              color: '#94a3b8',
-              fontWeight: '700',
-              backgroundColor: '#1e293b',
-              borderBottom: '2px solid #334155',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              textAlign: 'right',
-            }}
-          >
-            <span style={{ textAlign: 'left' }}>Coin Adı</span>
-            <span>İşlem Sayısı</span>
-            <span>Toplam Hacim (USD)</span>
-            <span>Alış Hacmi (USD)</span>
-            <span>Satış Hacmi (USD)</span>
-            <span>Net Hacim (USD)</span>
+          <div className="bg-slate-900 px-4 py-3 border-b border-slate-800 grid grid-cols-4 gap-2 text-xs font-bold text-slate-400">
+            <span>RANK</span>
+            <span>COIN</span>
+            <span className="text-right">VOLUME</span>
+            <span className="text-right">TRADES</span>
           </div>
-
-          <div style={{ backgroundColor: '#0f172a' }}>
-            {coinSummary.map((data, idx) => (
-              <div
-                key={data.coinName}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr repeat(5, minmax(120px, 1fr))',
-                  gap: '12px',
-                  padding: '14px 20px',
-                  fontSize: '13px',
-                  borderBottom: '1px solid #1e293b',
-                  backgroundColor: idx % 2 === 0 ? '#0f172a' : '#1a1f2e',
-                  textAlign: 'right',
-                  alignItems: 'center',
-                }}
-              >
-                <span
-                  style={{
-                    color: '#60a5fa',
-                    fontWeight: '700',
-                    textAlign: 'left',
-                  }}
-                >
-                  {data.coinName}
-                </span>
-                <span style={{ color: '#e2e8f0', fontWeight: '600' }}>
-                  {data.totalCount.toLocaleString()}
-                </span>
-                <span style={{ color: '#fbbf24', fontWeight: '700' }}>
-                  $
-                  {data.totalVolume.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-                <span style={{ color: '#22c55e', fontWeight: '600' }}>
-                  $
-                  {data.buyVolume.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-                <span style={{ color: '#ef4444', fontWeight: '600' }}>
-                  $
-                  {data.sellVolume.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-                <span
-                  style={{
-                    fontWeight: '700',
-                    color:
-                      data.buyVolume >= data.sellVolume ? '#22c55e' : '#ef4444',
-                  }}
-                >
-                  $
-                  {(data.buyVolume - data.sellVolume).toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                    signDisplay: 'always',
-                  })}
-                </span>
+          <div className="max-h-[600px] overflow-y-auto bg-slate-950">
+            {topBuyers.length === 0 ? (
+              <div className="text-center py-20 text-slate-500">
+                <div className="text-5xl mb-4">⏳</div>
+                <div className="font-semibold">Waiting for whale trades...</div>
               </div>
-            ))}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr repeat(5, minmax(120px, 1fr))',
-                gap: '12px',
-                padding: '16px 20px',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                backgroundColor: '#334155',
-                color: 'white',
-                textAlign: 'right',
-                borderTop: '3px solid #64748b',
-                alignItems: 'center',
-              }}
-            >
-              <span style={{ textAlign: 'left' }}>TÜM COINLER</span>
-              <span>{overallTotal.totalCount.toLocaleString()}</span>
-              <span style={{ color: '#fbbf24' }}>
-                $
-                {overallTotal.totalVolume.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <span style={{ color: '#22c55e' }}>
-                $
-                {overallTotal.buyVolume.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <span style={{ color: '#ef4444' }}>
-                $
-                {overallTotal.sellVolume.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <span
-                style={{
-                  color:
-                    overallTotal.buyVolume >= overallTotal.sellVolume
-                      ? '#22c55e'
-                      : '#ef4444',
-                }}
-              >
-                $
-                {(
-                  overallTotal.buyVolume - overallTotal.sellVolume
-                ).toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                  signDisplay: 'always',
-                })}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div
-        style={{
-          maxWidth: '1800px',
-          margin: '0 auto',
-          backgroundColor: '#1e293b',
-          borderRadius: '16px',
-          border: '1px solid #334155',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            background: 'linear-gradient(to right, #7c3aed, #a855f7)',
-            padding: '16px 20px',
-            color: 'white',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <span style={{ fontSize: '20px' }}>📊</span>
-          Filtered Whale Trades (≥${threshold.toLocaleString()})
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns:
-              '50px 140px 140px 150px 140px 140px 120px 180px',
-            gap: '12px',
-            padding: '14px 20px',
-            fontSize: '11px',
-            color: '#94a3b8',
-            fontWeight: '700',
-            backgroundColor: '#1e293b',
-            borderBottom: '2px solid #334155',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}
-        >
-          <span>#</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span>Name</span>
-            <select
-              value={filters.name}
-              onChange={(e) => handleFilterChange('name', e.target.value)}
-              style={{
-                padding: '4px 8px',
-                backgroundColor: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '6px',
-                color: '#94a3b8',
-                fontSize: '11px',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="">All</option>
-              {uniqueNames.map((name) => (
-                <option key={name} value={name.split('-')[0]}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span>Exchange</span>
-            <select
-              value={filters.exchange}
-              onChange={(e) => handleFilterChange('exchange', e.target.value)}
-              style={{
-                padding: '4px 8px',
-                backgroundColor: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '6px',
-                color: '#94a3b8',
-                fontSize: '11px',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="">All</option>
-              {uniqueExchanges.map((exchange) => (
-                <option key={exchange} value={exchange}>
-                  {exchange}
-                </option>
-              ))}
-            </select>
-          </div>
-          <span style={{ textAlign: 'right' }}>Quantity</span>
-          <span style={{ textAlign: 'right' }}>Price</span>
-          <span style={{ textAlign: 'right' }}>Total</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ textAlign: 'center' }}>Side</span>
-            <select
-              value={filters.side}
-              onChange={(e) => handleFilterChange('side', e.target.value)}
-              style={{
-                padding: '4px 8px',
-                backgroundColor: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '6px',
-                color: '#94a3b8',
-                fontSize: '11px',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="">All</option>
-              <option value="BUY">BUY</option>
-              <option value="SELL">SELL</option>
-            </select>
-          </div>
-          <span style={{ textAlign: 'right' }}>Time</span>
-        </div>
-
-        <div
-          style={{
-            maxHeight: '700px',
-            overflowY: 'auto',
-            backgroundColor: '#0f172a',
-          }}
-        >
-          {filteredTrades.length === 0 ? (
-            <div
-              style={{
-                padding: '60px 20px',
-                textAlign: 'center',
-                color: '#64748b',
-                fontSize: '16px',
-              }}
-            >
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
-              <div style={{ fontWeight: '600', marginBottom: '8px' }}>
-                {trades.length === 0
-                  ? 'Waiting for whale trades...'
-                  : 'No trades match your filters'}
-              </div>
-              <div style={{ fontSize: '14px', opacity: 0.7 }}>
-                Min: ${threshold.toLocaleString()} •{' '}
-                {isAnyConnected ? 'Live monitoring' : 'No connection'}
-              </div>
-            </div>
-          ) : (
-            filteredTrades.map((trade, idx) => (
-              <div
-                key={`${trade.id}-${idx}`}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns:
-                    '50px 140px 140px 150px 140px 140px 120px 180px',
-                  gap: '12px',
-                  padding: '14px 20px',
-                  fontSize: '13px',
-                  borderBottom: '1px solid #1e293b',
-                  fontFamily: 'monospace',
-                  backgroundColor: idx % 2 === 0 ? '#0f172a' : '#1a1f2e',
-                  transition: 'background-color 0.2s',
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = '#1e293b')
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor =
-                    idx % 2 === 0 ? '#0f172a' : '#1a1f2e')
-                }
-              >
-                <span style={{ color: '#64748b', fontWeight: '600' }}>
-                  {idx + 1}
-                </span>
-                <span style={{ color: '#60a5fa', fontWeight: '700' }}>
-                  {trade.pair}
-                </span>
-                <span style={{ color: '#a78bfa', fontWeight: '600' }}>
-                  {trade.exchange}
-                </span>
-                <span
-                  style={{
-                    color: '#e2e8f0',
-                    textAlign: 'right',
-                    fontWeight: '600',
-                  }}
+            ) : (
+              topBuyers.map((coin, idx) => (
+                <div
+                  key={coin.coin}
+                  className="grid grid-cols-4 gap-2 px-4 py-3 border-b border-slate-900 hover:bg-emerald-950/30 transition-colors"
                 >
-                  {trade.quantity.toFixed(6)}{' '}
-                  {trade.symbol
-                    .replace('USDT', '')
-                    .replace('-USDT', '')
-                    .replace('-USD', '')
-                    .replace('M', '')}
-                </span>
-                <span style={{ color: '#cbd5e1', textAlign: 'right' }}>
-                  $
-                  {trade.price < 1
-                    ? trade.price.toFixed(6)
-                    : trade.price.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                </span>
-                <span
-                  style={{
-                    color: '#fbbf24',
-                    textAlign: 'right',
-                    fontWeight: '700',
-                    fontSize: '14px',
-                  }}
-                >
-                  $
-                  {trade.total.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-                <div style={{ textAlign: 'center' }}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '4px 12px',
-                      borderRadius: '6px',
-                      backgroundColor:
-                        trade.side === 'BUY' ? '#166534' : '#991b1b',
-                      color: trade.side === 'BUY' ? '#22c55e' : '#ef4444',
-                      fontWeight: '700',
-                      fontSize: '12px',
-                    }}
-                  >
-                    {trade.side}
+                  <span className="text-slate-500 font-bold">#{idx + 1}</span>
+                  <span className="text-emerald-400 font-bold">{coin.coin}</span>
+                  <span className="text-right text-white font-semibold">
+                    ${(coin.buyVolume / 1000).toFixed(1)}K
                   </span>
+                  <span className="text-right text-emerald-300">{coin.buyCount}</span>
                 </div>
-                <span
-                  style={{
-                    color: '#94a3b8',
-                    textAlign: 'right',
-                    fontSize: '12px',
-                  }}
-                >
-                  {formatTime(trade.time)}
-                </span>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Top Sellers */}
+        <div className="bg-gradient-to-b from-red-900/20 to-slate-900 rounded-2xl border border-red-800/50 overflow-hidden shadow-2xl">
+          <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              📉 TOP 100 SELL VOLUME
+            </h2>
+          </div>
+          <div className="bg-slate-900 px-4 py-3 border-b border-slate-800 grid grid-cols-4 gap-2 text-xs font-bold text-slate-400">
+            <span>RANK</span>
+            <span>COIN</span>
+            <span className="text-right">VOLUME</span>
+            <span className="text-right">TRADES</span>
+          </div>
+          <div className="max-h-[600px] overflow-y-auto bg-slate-950">
+            {topSellers.length === 0 ? (
+              <div className="text-center py-20 text-slate-500">
+                <div className="text-5xl mb-4">⏳</div>
+                <div className="font-semibold">Waiting for whale trades...</div>
               </div>
-            ))
-          )}
+            ) : (
+              topSellers.map((coin, idx) => (
+                <div
+                  key={coin.coin}
+                  className="grid grid-cols-4 gap-2 px-4 py-3 border-b border-slate-900 hover:bg-red-950/30 transition-colors"
+                >
+                  <span className="text-slate-500 font-bold">#{idx + 1}</span>
+                  <span className="text-red-400 font-bold">{coin.coin}</span>
+                  <span className="text-right text-white font-semibold">
+                    ${(coin.sellVolume / 1000).toFixed(1)}K
+                  </span>
+                  <span className="text-right text-red-300">{coin.sellCount}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
-      <div
-        style={{
-          maxWidth: '1800px',
-          margin: '16px auto 0',
-          padding: '14px',
-          backgroundColor: '#1e293b',
-          borderRadius: '12px',
-          textAlign: 'center',
-          fontSize: '12px',
-          color: '#64748b',
-          border: '1px solid #334155',
-        }}
-      >
-        Multi-Exchange Futures WebSocket API • Real-time Whale Trade Monitoring • Top 100 Perpetual Contracts
+      {/* Footer */}
+      <div className="max-w-[1800px] mx-auto mt-6 text-center text-slate-500 text-sm py-4">
+        Premium Multi-Exchange Whale Tracker • Real-time Futures Monitoring • Last Update: {lastUpdate.toLocaleTimeString()}
       </div>
     </div>
   );
-}a3b8',
-                fontSize: '12px',
-                marginBottom: '6px',
-                fontWeight: '600',
-              }}
-            >
-              Total Trades
-            </div>
-            <div
-              style={{ color: '#60a5fa', fontSize: '28px', fontWeight: 'bold' }}
-            >
-              {stats.total.toLocaleString()}
-            </div>
-          </div>
-          <div
-            style={{
-              backgroundColor: '#0f172a',
-              padding: '16px',
-              borderRadius: '12px',
-              border: '1px solid #1e293b',
-            }}
-          >
-            <div
-              style={{
-                color: '#94a3b8',
-                fontSize: '12px',
-                marginBottom: '6px',
-                fontWeight: '600',
-              }}
-            >
-              Buy Orders
-            </div>
-            <div
-              style={{ color: '#22c55e', fontSize: '28px', fontWeight: 'bold' }}
-            >
-              {stats.buy.toLocaleString()}
-            </div>
-          </div>
-          <div
-            style={{
-              backgroundColor: '#0f172a',
-              padding: '16px',
-              borderRadius: '12px',
-              border: '1px solid #1e293b',
-            }}
-          >
-            <div
-              style={{
-                color: '#94
+}
