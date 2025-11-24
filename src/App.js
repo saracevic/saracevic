@@ -35,7 +35,8 @@ export default function App() {
             quantity: parseFloat(trade.v),
             price: parseFloat(trade.p),
             total: parseFloat(trade.v) * parseFloat(trade.p),
-            side: trade.S === 'Sell' ? 'SELL' : 'BUY',
+            side: trade.S === 'Sell' ?
+              'SELL' : 'BUY',
             time: new Date(trade.T),
           };
         }
@@ -61,7 +62,8 @@ export default function App() {
             quantity: parseFloat(trade.sz),
             price: parseFloat(trade.px),
             total: parseFloat(trade.sz) * parseFloat(trade.px),
-            side: trade.side === 'sell' ? 'SELL' : 'BUY',
+            side: trade.side === 'sell' ?
+              'SELL' : 'BUY',
             time: new Date(parseInt(trade.ts)),
           };
         }
@@ -76,6 +78,8 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState({});
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const wsRefs = useRef({});
+  // YENİ: Coin filtre metni state'i
+  const [filterText, setFilterText] = useState(''); 
 
   const fetchTopPairs = async (exchangeName) => {
     try {
@@ -124,7 +128,7 @@ export default function App() {
 
   const handleTradeUpdate = (trade, exchangeName) => {
     if (!trade || trade.total < threshold) return;
-    
+
     setLastUpdate(new Date());
     setCoinData((prev) => {
       const current = prev[trade.coin] || {
@@ -139,13 +143,15 @@ export default function App() {
       };
 
       return {
+
         ...prev,
         [trade.coin]: {
           ...current,
           buyVolume: current.buyVolume + (trade.side === 'BUY' ? trade.total : 0),
           sellVolume: current.sellVolume + (trade.side === 'SELL' ? trade.total : 0),
           buyCount: current.buyCount + (trade.side === 'BUY' ? 1 : 0),
-          sellCount: current.sellCount + (trade.side === 'SELL' ? 1 : 0),
+          sellCount: current.sellCount + (trade.side === 'SELL' ?
+            1 : 0),
           totalVolume: current.totalVolume + trade.total,
           lastPrice: trade.price,
           lastUpdate: new Date(),
@@ -180,11 +186,9 @@ export default function App() {
 
     wsRefs.current[key] = ws;
   };
-
   const connectOtherExchange = (exchangeName, pairs) => {
     const exchange = EXCHANGES[exchangeName];
     const ws = new WebSocket(exchange.wsUrl());
-
     ws.onopen = () => {
       setConnectionStatus((prev) => ({ ...prev, [exchangeName]: true }));
       if (exchange.subscribe) exchange.subscribe(ws, pairs);
@@ -234,11 +238,24 @@ export default function App() {
     };
   }, [selectedExchanges, threshold]);
 
-  const topBuyers = Object.values(coinData)
+  // YENİ: Filtreleme mantığı uygulanıyor
+  const lowerCaseFilter = filterText.toLowerCase();
+
+  const filteredTopBuyers = Object.values(coinData)
+    .sort((a, b) => b.buyVolume - a.buyVolume)
+    .filter(coin => coin.coin.toLowerCase().includes(lowerCaseFilter)) // Filtreleme
+    .slice(0, 100);
+
+  const filteredTopSellers = Object.values(coinData)
+    .sort((a, b) => b.sellVolume - a.sellVolume)
+    .filter(coin => coin.coin.toLowerCase().includes(lowerCaseFilter)) // Filtreleme
+    .slice(0, 100);
+
+  const topBuyers = Object.values(coinData) // Eski tanımlamaları koruduk, ancak tablolarda filtered olanları kullanacağız.
     .sort((a, b) => b.buyVolume - a.buyVolume)
     .slice(0, 100);
 
-  const topSellers = Object.values(coinData)
+  const topSellers = Object.values(coinData) // Eski tanımlamaları koruduk, ancak tablolarda filtered olanları kullanacağız.
     .sort((a, b) => b.sellVolume - a.sellVolume)
     .slice(0, 100);
 
@@ -266,6 +283,7 @@ export default function App() {
       margin: '0 auto 24px',
       background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
       borderRadius: '20px',
+
       padding: '30px',
       border: '1px solid #475569',
       boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
@@ -281,6 +299,7 @@ export default function App() {
     },
     statusBar: {
       display: 'flex',
+
       alignItems: 'center',
       gap: '16px',
       fontSize: '14px',
@@ -296,7 +315,8 @@ export default function App() {
       display: 'flex',
       gap: '16px',
       alignItems: 'flex-end',
-      flexWrap: 'wrap',
+      flexWrap:
+        'wrap',
       marginBottom: '24px',
     },
     input: {
@@ -311,7 +331,7 @@ export default function App() {
     },
     button: {
       padding: '12px 24px',
-      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+      background: 'linear-gradient(135deg,',
       border: 'none',
       borderRadius: '12px',
       color: 'white',
@@ -325,6 +345,7 @@ export default function App() {
       padding: '20px',
       backgroundColor: '#0f172a',
       borderRadius: '16px',
+
       border: '1px solid #334155',
       marginBottom: '24px',
     },
@@ -340,6 +361,7 @@ export default function App() {
       marginRight: '12px',
       marginBottom: '8px',
     },
+
     statsGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
@@ -355,6 +377,7 @@ export default function App() {
       margin: '0 auto',
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
+
       gap: '24px',
     },
     tableContainer: {
@@ -370,6 +393,7 @@ export default function App() {
       fontWeight: 'bold',
       display: 'flex',
       alignItems: 'center',
+
       gap: '10px',
     },
     tableColumnHeader: {
@@ -385,6 +409,7 @@ export default function App() {
       display: 'grid',
       gridTemplateColumns: '80px 1fr 1fr 1fr',
       gap: '16px',
+
       padding: '16px 20px',
       fontSize: '15px',
       borderBottom: '1px solid',
@@ -401,6 +426,7 @@ export default function App() {
       color: '#64748b',
     },
     footer: {
+
       maxWidth: '1800px',
       margin: '24px auto 0',
       textAlign: 'center',
@@ -420,6 +446,7 @@ export default function App() {
         button:hover {
           transform: translateY(-2px);
           box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+
         }
         input:focus {
           outline: none;
@@ -431,22 +458,26 @@ export default function App() {
       <div style={styles.header}>
         <h1 style={styles.title}>
           <span style={{ fontSize: '50px' }}>🐋</span>
+
           Premium Whale Tracker
         </h1>
-        
+
         <div style={styles.statusBar}>
-          <span style={{ 
+          <span style={{
             color: isConnected ? '#10b981' : '#ef4444',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
+
             fontWeight: 'bold'
           }}>
             <span style={{
               ...styles.statusDot,
-              backgroundColor: isConnected ? '#10b981' : '#ef4444'
+              backgroundColor: isConnected ?
+                '#10b981' : '#ef4444'
             }}></span>
-            {isConnected ? 'LIVE' : 'DISCONNECTED'}
+            {isConnected ?
+              'LIVE' : 'DISCONNECTED'}
           </span>
           <span style={{ color: '#64748b' }}>•</span>
           <span style={{ color: '#94a3b8' }}>{selectedExchanges.length} Active Exchanges</span>
@@ -455,13 +486,16 @@ export default function App() {
         </div>
 
         <div style={styles.controls}>
+          {/* 1. MIN AMOUNT (USD) */}
           <div>
-            <label style={{ 
+
+            <label style={{
               display: 'block',
               color: '#94a3b8',
               fontSize: '11px',
               fontWeight: 'bold',
               marginBottom: '8px',
+
               letterSpacing: '1px'
             }}>
               MIN AMOUNT (USD)
@@ -470,14 +504,39 @@ export default function App() {
               type="number"
               value={threshold}
               onChange={(e) => setThreshold(Number(e.target.value))}
+
               style={styles.input}
             />
           </div>
+
+          {/* 2. YENİ: COIN FİLTRESİ */}
+          <div>
+            <label style={{
+              display: 'block',
+              color: '#94a3b8',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              marginBottom: '8px',
+              letterSpacing: '1px'
+            }}>
+              COIN FİLTRESİ
+            </label>
+            <input
+              type="text"
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              style={styles.input}
+              placeholder="BTC, ETH, vb."
+            />
+          </div>
+
+          {/* 3. RESET BUTONU */}
           <button
             onClick={() => setCoinData({})}
             style={styles.button}
             onMouseEnter={(e) => {
-              e.target.style.background = 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)';
+              e.target.style.background
+                = 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)';
             }}
             onMouseLeave={(e) => {
               e.target.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
@@ -488,9 +547,10 @@ export default function App() {
         </div>
 
         <div style={styles.exchangeSelector}>
-          <div style={{ 
+          <div style={{
             color: '#94a3b8',
             fontSize: '12px',
+
             fontWeight: 'bold',
             marginBottom: '16px',
             letterSpacing: '1px'
@@ -499,26 +559,32 @@ export default function App() {
           </div>
           <div>
             {Object.keys(EXCHANGES).map((ex) => {
-              const isSelected = selectedExchanges.includes(ex);
+              const isSelected
+                = selectedExchanges.includes(ex);
               return (
                 <button
                   key={ex}
                   onClick={() => {
                     setSelectedExchanges((prev) =>
+
                       prev.includes(ex) ? prev.filter((e) => e !== ex) : [...prev, ex]
                     );
                   }}
                   style={{
                     ...styles.exchangeButton,
-                    background: isSelected 
+
+                    background: isSelected
                       ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
                       : '#334155',
-                    boxShadow: isSelected 
-                      ? '0 4px 12px rgba(139, 92, 246, 0.4)'
+                    boxShadow: isSelected
+
+                      ?
+                      '0 4px 12px rgba(139, 92, 246, 0.4)'
                       : 'none',
                   }}
                 >
                   {isSelected && '✓ '}{ex}
+
                 </button>
               );
             })}
@@ -531,13 +597,15 @@ export default function App() {
             background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)',
             borderColor: '#10b981',
           }}>
+
             <div style={{ color: '#6ee7b7', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
               BUY VOLUME
             </div>
             <div style={{ color: 'white', fontSize: '32px', fontWeight: 'bold' }}>
               ${(totalStats.totalBuyVolume / 1000000).toFixed(2)}M
             </div>
-            <div style={{ color: '#a7f3d0', fontSize: '14px', marginTop: '8px' }}>
+            <div
+              style={{ color: '#a7f3d0', fontSize: '14px', marginTop: '8px' }}>
               {totalStats.totalBuyCount.toLocaleString()} trades
             </div>
           </div>
@@ -546,12 +614,14 @@ export default function App() {
             ...styles.statCard,
             background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
             borderColor: '#ef4444',
+
           }}>
             <div style={{ color: '#fca5a5', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
               SELL VOLUME
             </div>
             <div style={{ color: 'white', fontSize: '32px', fontWeight: 'bold' }}>
               ${(totalStats.totalSellVolume / 1000000).toFixed(2)}M
+
             </div>
             <div style={{ color: '#fecaca', fontSize: '14px', marginTop: '8px' }}>
               {totalStats.totalSellCount.toLocaleString()} trades
@@ -560,21 +630,24 @@ export default function App() {
 
           <div style={{
             ...styles.statCard,
-            background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)',
+            background: 'linear-gradient(135deg, #1e3a8a 0%',
             borderColor: '#3b82f6',
           }}>
             <div style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
               NET FLOW
             </div>
-            <div style={{ 
+            <div style={{
+
               color: totalStats.totalBuyVolume > totalStats.totalSellVolume ? '#10b981' : '#ef4444',
               fontSize: '32px',
               fontWeight: 'bold'
             }}>
               ${Math.abs((totalStats.totalBuyVolume - totalStats.totalSellVolume) / 1000000).toFixed(2)}M
             </div>
-            <div style={{ color: '#bfdbfe', fontSize: '14px', marginTop: '8px' }}>
-              {totalStats.totalBuyVolume > totalStats.totalSellVolume ? 'Buy pressure' : 'Sell pressure'}
+            <div style={{ color: '#bfdbfe', fontSize: '14px', marginTop: '8px'
+            }}>
+              {totalStats.totalBuyVolume > totalStats.totalSellVolume ?
+                'Buy pressure' : 'Sell pressure'}
             </div>
           </div>
 
@@ -583,13 +656,15 @@ export default function App() {
             background: 'linear-gradient(135deg, #78350f 0%, #92400e 100%)',
             borderColor: '#f59e0b',
           }}>
+
             <div style={{ color: '#fcd34d', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
               ACTIVE COINS
             </div>
             <div style={{ color: 'white', fontSize: '32px', fontWeight: 'bold' }}>
               {Object.keys(coinData).length}
             </div>
-            <div style={{ color: '#fde68a', fontSize: '14px', marginTop: '8px' }}>
+            <div style={{ color: '#fde68a',
+              fontSize: '14px', marginTop: '8px' }}>
               Tracked assets
             </div>
           </div>
@@ -600,6 +675,7 @@ export default function App() {
         {/* Buy Volume Table */}
         <div style={{
           ...styles.tableContainer,
+
           borderColor: '#10b981',
           background: 'linear-gradient(180deg, rgba(6, 78, 59, 0.2) 0%, #0f172a 100%)',
         }}>
@@ -608,6 +684,7 @@ export default function App() {
             background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
           }}>
             📈 TOP 100 BUY VOLUME
+
           </div>
           <div style={{
             ...styles.tableColumnHeader,
@@ -616,48 +693,57 @@ export default function App() {
             borderBottom: '2px solid #334155',
           }}>
             <span>RANK</span>
+
             <span>COIN</span>
             <span style={{ textAlign: 'right' }}>VOLUME</span>
             <span style={{ textAlign: 'right' }}>TRADES</span>
           </div>
           <div style={styles.scrollContainer}>
-            {topBuyers.length === 0 ? (
-              <div style={styles.emptyState}>
-                <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏳</div>
-                <div style={{ fontWeight: 'bold', fontSize: '18px' }}>Waiting for whale trades...</div>
-                <div style={{ marginTop: '8px', fontSize: '14px' }}>Min: ${threshold.toLocaleString()}</div>
-              </div>
-            ) : (
-              topBuyers.map((coin, idx) => (
-                <div
-                  key={coin.coin}
-                  style={{
-                    ...styles.tableRow,
-                    backgroundColor: idx % 2 === 0 ? '#0f172a' : '#1a1f2e',
-                    borderBottomColor: '#1e293b',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#064e3b';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#0f172a' : '#1a1f2e';
-                  }}
-                >
-                  <span style={{ color: '#64748b', fontWeight: 'bold' }}>#{idx + 1}</span>
-                  <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
-                    {coin.coin}
-                  </span>
-                  <span style={{ color: 'white', fontWeight: 'bold', textAlign: 'right' }}>
-                    ${(coin.buyVolume / 1000).toFixed(1)}K
-                  </span>
-                  <span style={{ color: '#6ee7b7', textAlign: 'right' }}>
-                    {coin.buyCount}
-                  </span>
+            {filteredTopBuyers.length === 0 ? // <-- DEĞİŞİKLİK
+              (
+                <div style={styles.emptyState}>
+                  <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏳</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '18px' }}>Waiting for whale trades...</div>
+                  <div style={{ marginTop: '8px', fontSize: '14px' }}>Min: ${threshold.toLocaleString()}</div>
                 </div>
-              ))
-            )}
+
+              ) : (
+                filteredTopBuyers.map((coin, idx) => ( // <-- DEĞİŞİKLİK
+                  <div
+                    key={coin.coin}
+                    style={{
+
+                      ...styles.tableRow,
+                      backgroundColor: idx % 2 === 0 ? '#0f172a' : '#1a1f2e',
+                      borderBottomColor: '#1e293b',
+                    }}
+                    onMouseEnter={(e) => {
+
+                      e.currentTarget.style.backgroundColor = '#064e3b';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#0f172a' : '#1a1f2e';
+                    }}
+
+                  >
+                    <span style={{ color: '#64748b', fontWeight: 'bold' }}>#{idx + 1}</span>
+                    <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
+                      {coin.coin}
+
+                    </span>
+                    <span style={{ color: 'white', fontWeight: 'bold', textAlign: 'right' }}>
+                      ${(coin.buyVolume / 1000).toFixed(1)}K
+                    </span>
+                    <span style={{ color: '#6ee7b7', textAlign: 'right' }}>
+
+                      {coin.buyCount}
+                    </span>
+                  </div>
+                ))
+              )}
           </div>
         </div>
+
 
         {/* Sell Volume Table */}
         <div style={{
@@ -667,7 +753,7 @@ export default function App() {
         }}>
           <div style={{
             ...styles.tableHeader,
-            background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+            background: 'linear-gradient(135deg, #dc2626 0%, #ef4444',
           }}>
             📉 TOP 100 SELL VOLUME
           </div>
@@ -675,7 +761,7 @@ export default function App() {
             ...styles.tableColumnHeader,
             backgroundColor: '#1e293b',
             color: '#94a3b8',
-            borderBottom: '2px solid #334155',
+            borderBottom: '2px solid',
           }}>
             <span>RANK</span>
             <span>COIN</span>
@@ -683,43 +769,51 @@ export default function App() {
             <span style={{ textAlign: 'right' }}>TRADES</span>
           </div>
           <div style={styles.scrollContainer}>
-            {topSellers.length === 0 ? (
-              <div style={styles.emptyState}>
-                <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏳</div>
-                <div style={{ fontWeight: 'bold', fontSize: '18px' }}>Waiting for whale trades...</div>
-                <div style={{ marginTop: '8px', fontSize: '14px' }}>Min: ${threshold.toLocaleString()}</div>
-              </div>
-            ) : (
-              topSellers.map((coin, idx) => (
-                <div
-                  key={coin.coin}
-                  style={{
-                    ...styles.tableRow,
-                    backgroundColor: idx % 2 === 0 ? '#0f172a' : '#1a1f2e',
-                    borderBottomColor: '#1e293b',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#7f1d1d';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#0f172a' : '#1a1f2e';
-                  }}
-                >
-                  <span style={{ color: '#64748b', fontWeight: 'bold' }}>#{idx + 1}</span>
-                  <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '16px' }}>
-                    {coin.coin}
-                  </span>
-                  <span style={{ color: 'white', fontWeight: 'bold', textAlign: 'right' }}>
-                    ${(coin.sellVolume / 1000).toFixed(1)}K
-                  </span>
-                  <span style={{ color: '#fca5a5', textAlign: 'right' }}>
-                    {coin.sellCount}
-                  </span>
+            {filteredTopSellers.length // <-- DEĞİŞİKLİK
+              === 0 ? (
+                <div style={styles.emptyState}>
+                  <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏳</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '18px' }}>Waiting for whale trades...</div>
+                  <div style={{ marginTop: '8px', fontSize: '14px' }}>Min: ${threshold.toLocaleString()}</div>
+
                 </div>
-              ))
-            )}
+              ) : (
+                filteredTopSellers.map((coin, idx) => ( // <-- DEĞİŞİKLİK
+                  <div
+                    key={coin.coin}
+                    style={{
+
+                      ...styles.tableRow,
+                      backgroundColor: idx % 2 === 0 ? '#0f172a' : '#1a1f2e',
+                      borderBottomColor: '#1e293b',
+                    }}
+                    onMouseEnter={(e) => {
+
+                      e.currentTarget.style.backgroundColor = '#7f1d1d';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#0f172a' : '#1a1f2e';
+
+                    }}
+                  >
+                    <span style={{ color: '#64748b', fontWeight: 'bold' }}>#{idx + 1}</span>
+                    <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '16px' }}>
+                      {coin.coin}
+
+                    </span>
+                    <span style={{ color: 'white', fontWeight: 'bold', textAlign: 'right' }}>
+                      ${(coin.sellVolume / 1000).toFixed(1)}K
+                    </span>
+                    <span style={{ color: '#fca5a5', textAlign: 'right' }}>
+
+                      {coin.sellCount}
+                    </span>
+                  </div>
+                ))
+              )}
           </div>
         </div>
+
       </div>
 
       <div style={styles.footer}>
